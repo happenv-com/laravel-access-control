@@ -1,0 +1,124 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Happenv\LaravelAccessControl;
+
+use Closure;
+use Happenv\LaravelAccessControl\Attributes\VoterForPermission;
+use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
+use Illuminate\Auth\Access\Response;
+use Illuminate\Contracts\Auth\Authenticatable;
+use ReflectionClass;
+use ReflectionMethod;
+
+/**
+ * @property class-string<PermissionDefinition>[] $permissions
+ */
+final class VoterRegistry
+{
+    /**
+     * @var array<string, array<int, callable>>
+     */
+    private array $voters = [];
+
+    /**
+     * @param  class-string<PermissionDefinition>[]  $permissions
+     */
+    public function __construct(
+        public array $permissions = [],
+    ) {}
+
+    public function register(string | array | PermissionDefinition $voterClassOrPermission, ?Closure $voter = null): void
+    {
+        // Handle array of classes or permissions
+        if (is_array($voterClassOrPermission)) {
+            foreach ($voterClassOrPermission as $item) {
+                $this->register($item, $voter);
+            }
+
+            return;
+        }
+
+        // Handle single class
+        if (is_string($voterClassOrPermission)) {
+            $this->registerClass($voterClassOrPermission);
+
+            return;
+        }
+
+        // Handle PermissionDefinition with closure
+        if (! $voter instanceof Closure) {
+            throw new \InvalidArgumentException('Voter closure must be provided when registering by PermissionDefinition.');
+        }
+
+        $this->registerCallback($voterClassOrPermission, $voter);
+    }
+
+    public function registerCallback(PermissionDefinition $permission, Closure $voter): void
+    {
+        $identifier = spl_object_hash($voter);
+
+        if (isset($this->voters[self::class][$permission->value][$identifier])) {
+            return;
+        }
+
+        $this->voters[self::class][$permission->value][$identifier] = $voter;
+    }
+
+    /**
+     * @param  class-string|class-string[]  $voterClass
+     */
+    public function registerClass(string | array $voterClass): void
+    {
+        if (is_array($voterClass)) {
+            foreach ($voterClass as $class) {
+                $this->registerClass($class);
+            }
+
+            return;
+        }
+
+        $reflection = new ReflectionClass($voterClass);
+        $methods = $reflection->getMethods(ReflectionMethod::IS_PUBLIC);
+
+        foreach ($methods as $method) {
+            $attributes = $method->getAttributes(VoterForPermission::class);
+
+            foreach ($attributes as $attribute) {
+                /** @var VoterForPermission $instance */
+                $instance = $attribute->newInstance();
+
+                $this->register(
+                    $instance->permission,
+                    fn (Authenticatable $user, mixed ...$arguments): Response => $reflection
+                        ->newInstance()
+                        ->{$method->getName()}($user, ...$arguments),
+                );
+            }
+        }
+    }
+
+    public function countVoters(PermissionDefinition $action): int
+    {
+        return count($this->voters[self::class][$action->value] ?? []);
+    }
+
+    public function vote(PermissionDefinition $action, Authenticatable $user, mixed ...$arguments): Response
+    {
+        $voters = $this->voters[self::class][$action->value] ?? [];
+
+        foreach ($voters as $voter) {
+
+            $result = $voter($user, ...$arguments);
+
+            assert($result instanceof Response);
+
+            if ($result->denied()) {
+                return $result;
+            }
+        }
+
+        return Response::allow();
+    }
+}

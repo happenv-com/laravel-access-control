@@ -1,0 +1,88 @@
+{
+    "name": "happenv-com/laravel-access-control",
+    "description": "A modular access control library for Laravel applications.",
+    "keywords": [
+        "happenv",
+        "laravel",
+        "acl",
+        "voter",
+        "modular",
+        "permissions",
+        "roles",
+        "rbac",
+        "access-control"
+    ],
+    "homepage": "https://github.com/happenv-com/laravel-access-control",
+    "support": {
+        "issues": "https://github.com/happenv-com/laravel-access-control/issues",
+        "source": "https://github.com/happenv-com/laravel-access-control"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "webard",
+            "email": "code@webard.me",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "illuminate/support": "^12.20|^13.0"
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.0",
+        "nunomaduro/collision": "^8.0",
+        "orchestra/testbench": "^8.0|^9.0|^10.0",
+        "pestphp/pest": "^4.2",
+        "pestphp/pest-plugin-arch": "^4.0",
+        "pestphp/pest-plugin-laravel": "^4.0",
+        "pestphp/pest-plugin-type-coverage": "^4.0",
+        "phpstan/phpstan-deprecation-rules": "^2.0",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "rector/rector": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Happenv\\LaravelAccessControl\\": "src/",
+            "Happenv\\LaravelAccessControl\\Database\\Factories\\": "database/factories/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Happenv\\LaravelAccessControl\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "post-autoload-dump": "@php ./vendor/bin/testbench package:discover --ansi",
+        "analyse": "phpstan analyse",
+        "lint": "pint",
+        "refactor": "rector",
+        "coverage": "@test --coverage",
+        "type-coverage": "@test --type-coverage",
+        "test": "pest",
+        "test:lint": "pint --test",
+        "test:refactor": "rector --dry-run",
+        "test:type-coverage": "@test --type-coverage --exactly=100",
+        "test:coverage": "@test --coverage --exactly=100"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Happenv\\LaravelAccessControl\\AccessControlServiceProvider"
+            ],
+            "aliases": {
+                "AccessControl": "Happenv\\LaravelAccessControl\\Facades\\AccessControl"
+            }
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "composer/package-versions-deprecated": true,
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
