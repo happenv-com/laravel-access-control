@@ -41,7 +41,7 @@ final readonly class PermissionReflector
      */
     public function getValues(): Collection
     {
-        return new Collection($this->permission::cases())
+        return (new Collection($this->permission::cases()))
             ->map(fn (PermissionDefinition $case): PermissionDto => new PermissionDto(
                 name: $this->getName($case->name),
                 enum: $case,
