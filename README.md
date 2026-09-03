@@ -322,6 +322,34 @@ enum ProductPermission: string implements PermissionDefinition
 }
 ```
 
+#### Subjects
+
+A group says which module owns a permission. A **subject** says what the permission is
+about, and there is exactly one per permission enum — the enum is already a stand-in for
+the thing being guarded.
+
+The level matters as soon as several enums share a group. Without it, that group renders
+as one flat list in which `View` appears once per enum with nothing to tell the entries
+apart. Nothing has to be declared to get it: the subject is named after the enum with the
+`Permission` suffix dropped.
+
+Label it explicitly by putting `PermissionName` and `PermissionDescription` on the enum
+CLASS — the same attributes the cases use:
+
+```php
+#[PermissionGroup(SettingsGroup::class)]
+#[PermissionName('Store Settings')]
+#[PermissionDescription('Settings that apply to the whole store')]
+enum StoreSettingPermission: string implements PermissionDefinition
+{
+    case View = 'store-setting.view';
+    case Update = 'store-setting.update';
+}
+```
+
+A permission that declares no name of its own is labelled from its subject
+(`View Store Settings`), so annotating the class relabels every case under it at once.
+
 #### Retrieving Permission Metadata
 
 ```php
@@ -329,11 +357,23 @@ use Happenv\LaravelAccessControl\PermissionCollection;
 
 $collection = resolve(PermissionCollection::class);
 
-// Get all permissions grouped
+// Groups, each with a flat `children` list AND a `subjects` map
 $grouped = $collection->getGroupedPermissions();
 
-// Get flat list of all permissions
+foreach ($grouped as $group) {
+    foreach ($group->subjects as $subject) {
+        $subject->name;     // 'Store Settings'
+        $subject->slug;     // 'store-setting'
+        $subject->enum;     // StoreSettingPermission::class
+        $subject->children; // PermissionDto[]
+    }
+}
+
+// Flat list of all permissions
 $permissions = $collection->getPermissions();
+
+// Every subject across every group, keyed by its enum
+$subjects = $collection->getSubjects();
 ```
 
 This is useful for building permission management UIs.

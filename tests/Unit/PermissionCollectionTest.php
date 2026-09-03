@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 use Happenv\LaravelAccessControl\Dto\PermissionDto;
 use Happenv\LaravelAccessControl\Dto\PermissionGroupDto;
+use Happenv\LaravelAccessControl\Dto\PermissionSubjectDto;
 use Happenv\LaravelAccessControl\PermissionCollection;
 use Happenv\LaravelAccessControl\PermissionRegistry;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\CategoryPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ProductPermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\StoreSettingPermission;
 
 beforeEach(function (): void {
     $this->registry = new PermissionRegistry;
@@ -105,6 +107,62 @@ describe('PermissionCollection', function (): void {
                 ->toContain('product.create')
                 ->toContain('category.view')
                 ->toContain('category.delete');
+        });
+    });
+    describe('subjects', function (): void {
+        it('splits a shared group into one subject per enum', function (): void {
+            $this->registry->register([
+                ProductPermission::class,
+                StoreSettingPermission::class,
+            ]);
+
+            $productGroup = $this->collection->getGroupedPermissions()->get('products');
+
+            expect($productGroup->subjects)->toHaveCount(2);
+            expect($productGroup->subjects->first())->toBeInstanceOf(PermissionSubjectDto::class);
+        });
+
+        it('keeps the flat children list alongside the subjects', function (): void {
+            $this->registry->register([
+                ProductPermission::class,
+                StoreSettingPermission::class,
+            ]);
+
+            $productGroup = $this->collection->getGroupedPermissions()->get('products');
+
+            // 4 product + 2 store setting, none dropped by the split.
+            expect($productGroup->children)->toHaveCount(6);
+            expect($productGroup->subjects->sum(fn (PermissionSubjectDto $subject): int => $subject->children->count()))->toBe(6);
+        });
+
+        it('keys subjects by the declaring enum, not by the slug', function (): void {
+            $this->registry->register([
+                ProductPermission::class,
+                StoreSettingPermission::class,
+            ]);
+
+            $productGroup = $this->collection->getGroupedPermissions()->get('products');
+
+            expect($productGroup->subjects->keys()->toArray())
+                ->toContain(ProductPermission::class)
+                ->toContain(StoreSettingPermission::class);
+        });
+
+        it('leaves subjects empty when nothing is registered', function (): void {
+            expect($this->collection->getSubjects())->toBeEmpty();
+        });
+
+        it('lists every subject across every group', function (): void {
+            $this->registry->register([
+                ProductPermission::class,
+                CategoryPermission::class,
+                StoreSettingPermission::class,
+            ]);
+
+            expect($this->collection->getSubjects()->keys()->toArray())
+                ->toContain(ProductPermission::class)
+                ->toContain(CategoryPermission::class)
+                ->toContain(StoreSettingPermission::class);
         });
     });
 });

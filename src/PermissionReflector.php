@@ -10,6 +10,7 @@ use Happenv\LaravelAccessControl\Attributes\PermissionName;
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\Contracts\PermissionGroupDefinition;
 use Happenv\LaravelAccessControl\Dto\PermissionDto;
+use Happenv\LaravelAccessControl\Dto\PermissionSubjectDto;
 use Happenv\LaravelAccessControl\Exceptions\PermissionGroupRequiredException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -37,6 +38,20 @@ final readonly class PermissionReflector
     }
 
     /**
+     * The enum, described as the thing its permissions guard.
+     */
+    public function getSubject(): PermissionSubjectDto
+    {
+        return new PermissionSubjectDto(
+            name: $this->getSubjectName(),
+            slug: $this->getSubjectSlug(),
+            enum: $this->permission,
+            children: $this->getValues(),
+            description: $this->getSubjectDescription(),
+        );
+    }
+
+    /**
      * @return Collection<int,PermissionDto>
      */
     public function getValues(): Collection
@@ -50,40 +65,106 @@ final readonly class PermissionReflector
             ));
     }
 
+    /**
+     * The subject's label: a class-level `PermissionName`, else the enum's own
+     * name with the `Permission` suffix dropped (`WarehousePermission` →
+     * `Warehouse`).
+     */
+    public function getSubjectName(): string
+    {
+        $attribute = $this->getClassAttribute(PermissionName::class);
+
+        return $attribute instanceof PermissionName
+            ? __($attribute->value)
+            : $this->getSubjectHeadline();
+    }
+
+    public function getSubjectDescription(): ?string
+    {
+        $attribute = $this->getClassAttribute(PermissionDescription::class);
+
+        return $attribute instanceof PermissionDescription
+            ? __($attribute->value)
+            : null;
+    }
+
+    /**
+     * A stable, URL- and DOM-safe handle for the subject, unique within a group
+     * as long as one group does not own two enums of the same short name.
+     */
+    public function getSubjectSlug(): string
+    {
+        return Str::of($this->permission)
+            ->classBasename()
+            ->beforeLast('Permission')
+            ->kebab()
+            ->toString();
+    }
+
     private function getDescription(string $enumCase): ?string
     {
-        $ref = new ReflectionClassConstant($this->permission, $enumCase);
-        $classAttributes = $ref->getAttributes(PermissionDescription::class);
+        $attribute = $this->getConstantAttribute($enumCase, PermissionDescription::class);
 
-        if ($classAttributes === []) {
-            return null;
-        }
-
-        $attribute = $classAttributes[0]->newInstance();
-
-        return __($attribute->value);
+        return $attribute instanceof PermissionDescription
+            ? __($attribute->value)
+            : null;
     }
 
     private function getName(string $enumCase): string
     {
-        $ref = new ReflectionClassConstant($this->permission, $enumCase);
-        $classAttributes = $ref->getAttributes(PermissionName::class);
+        $attribute = $this->getConstantAttribute($enumCase, PermissionName::class);
 
-        if ($classAttributes === []) {
-            return $this->getDefaultName($enumCase);
-        }
-
-        $attribute = $classAttributes[0]->newInstance();
-
-        return __($attribute->value);
+        return $attribute instanceof PermissionName
+            ? __($attribute->value)
+            : $this->getDefaultName($enumCase);
     }
 
+    /**
+     * Qualify the verb with the SUBJECT, not the group: a group is shared by
+     * many enums, so qualifying with it renders every enum's `View` as the same
+     * string ("View Core") with nothing to tell them apart.
+     */
     private function getDefaultName(string $enumCase): string
     {
         return Str::of($enumCase)
             ->headline()
             ->append(' ')
-            ->append($this->getGroup()->getName())
+            ->append($this->getSubjectName())
             ->toString();
+    }
+
+    private function getSubjectHeadline(): string
+    {
+        return Str::of($this->permission)
+            ->classBasename()
+            ->beforeLast('Permission')
+            ->headline()
+            ->toString();
+    }
+
+    /**
+     * @template TAttribute of object
+     *
+     * @param  class-string<TAttribute>  $attribute
+     * @return TAttribute|null
+     */
+    private function getClassAttribute(string $attribute): ?object
+    {
+        $attributes = (new ReflectionClass($this->permission))->getAttributes($attribute);
+
+        return $attributes === [] ? null : $attributes[0]->newInstance();
+    }
+
+    /**
+     * @template TAttribute of object
+     *
+     * @param  class-string<TAttribute>  $attribute
+     * @return TAttribute|null
+     */
+    private function getConstantAttribute(string $enumCase, string $attribute): ?object
+    {
+        $attributes = (new ReflectionClassConstant($this->permission, $enumCase))->getAttributes($attribute);
+
+        return $attributes === [] ? null : $attributes[0]->newInstance();
     }
 }
