@@ -59,6 +59,29 @@ describe('GateConfigurator', function (): void {
         it('denies unauthenticated user', function (): void {
             expect(Gate::allows(ProductPermission::View))->toBeFalse();
         });
+
+        it('says which of the two refusals it is', function (): void {
+            // The two denials this gate can produce are DIFFERENT PROBLEMS on the caller's side and
+            // take different fixes: no principal at all versus a principal that lacks the ability.
+            // Consumers publish these messages verbatim -- Sellero's public GraphQL API puts them in
+            // its error envelope -- so the strings are part of this package's contract, not debug
+            // text, and they are asserted here as VALUES rather than as "some denial".
+            $withoutPermissions = User::create([
+                'name' => 'No Permissions User',
+                'email' => 'noperm@example.com',
+                'password' => 'password',
+                'permissions' => [],
+            ]);
+
+            // NO USER AT ALL. The gate closure takes `?Authenticatable $user = null`, so Laravel runs
+            // it for guests instead of short-circuiting, and this branch is the one a caller sees.
+            expect(Gate::inspect(ProductPermission::View)->message())->toBe('Unauthenticated.');
+
+            // A USER, WITHOUT THE ABILITY -- the other message, which must not drift into the first.
+            $this->actingAs($withoutPermissions);
+
+            expect(Gate::inspect(ProductPermission::View)->message())->toBe('Unauthorized.');
+        });
     });
 
     describe('authorization with voters', function (): void {

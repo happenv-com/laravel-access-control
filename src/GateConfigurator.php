@@ -28,7 +28,7 @@ final readonly class GateConfigurator
                     $permission
                 ): Response {
                     if (! $user instanceof Authenticatable) {
-                        return Response::deny('Unauthenicated.');
+                        return Response::deny('Unauthenticated.');
                     }
 
                     if ($user instanceof AuthControllable && ! $user->hasPermissionTo($permission)) {
