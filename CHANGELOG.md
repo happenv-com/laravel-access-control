@@ -2,6 +2,14 @@
 
 All notable changes to `access-control` will be documented in this file.
 
+## 2.1.1 - 2026-09-06
+
+### Fixed
+
+- The refusal returned when the gate is handed NO user said `Unauthenicated.` — a misspelling of `Unauthenticated.` carried since the initial release. Consumers publish this message verbatim (Sellero's public GraphQL API puts it straight into its error envelope), so the typo was reaching partner integrations. `Unauthorized.`, the different refusal for a principal that lacks the ability, is unchanged — the two are separate problems on the caller's side and both are now pinned by a test.
+
+**Upgrading:** anything asserting or comparing against the old spelling has to change with it.
+
 ## 2.1.0 - 2026-09-03
 
 ### Added
