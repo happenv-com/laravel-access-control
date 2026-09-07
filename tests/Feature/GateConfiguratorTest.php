@@ -134,3 +134,27 @@ describe('GateConfigurator', function (): void {
         });
     });
 });
+
+describe('display_permission_in_exception', function (): void {
+    // `beforeEach` above already registered ProductPermission and called configure() once
+    // against the DEFAULT config value -- registering it again here would collide with that
+    // (PermissionRegistry::register() throws on a duplicate enum). Not re-calling configure()
+    // after config()->set() is deliberate too: it proves the message is read at REFUSAL time,
+    // not frozen into the closure when configure() ran.
+    it('refuses without naming the permission by default', function (): void {
+        config()->set('access-control.display_permission_in_exception', false);
+
+        $user = User::create(['name' => 'A', 'email' => 'a@example.com', 'password' => 'x']);
+
+        expect(Gate::forUser($user)->inspect(ProductPermission::View)->message())->toBe('Unauthorized.');
+    });
+
+    it('names the permission when the option is on', function (): void {
+        config()->set('access-control.display_permission_in_exception', true);
+
+        $user = User::create(['name' => 'B', 'email' => 'b@example.com', 'password' => 'x']);
+
+        expect(Gate::forUser($user)->inspect(ProductPermission::View)->message())
+            ->toBe('Unauthorized for product.view');
+    });
+});
