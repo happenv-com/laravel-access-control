@@ -27,7 +27,10 @@ final readonly class AvailableFor
 
     public function __construct(PermissionSurfaceDefinition ...$surfaces)
     {
-        // A variadic cannot be promoted, so the assignment is written out.
-        $this->surfaces = array_values($surfaces);
+        // Written out because a variadic cannot be promoted, and assigned AS IS because an
+        // attribute can only ever pass these positionally — PHP collects such arguments into a
+        // 0-indexed list already. `array_values()` stood here and normalised nothing; a reader had
+        // to work out that it was guarding against a shape this constructor cannot receive.
+        $this->surfaces = $surfaces;
     }
 }
