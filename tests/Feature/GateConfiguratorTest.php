@@ -144,17 +144,17 @@ describe('display_permission_in_exception', function (): void {
     it('refuses without naming the permission by default', function (): void {
         config()->set('access-control.display_permission_in_exception', false);
 
-        $user = User::create(['name' => 'A', 'email' => 'a@example.com', 'password' => 'x']);
+        $this->actingAs(User::create(['name' => 'A', 'email' => 'a@example.com', 'password' => 'x']));
 
-        expect(Gate::forUser($user)->inspect(ProductPermission::View)->message())->toBe('Unauthorized.');
+        expect(Gate::inspect(ProductPermission::View)->message())->toBe('Unauthorized.');
     });
 
     it('names the permission when the option is on', function (): void {
         config()->set('access-control.display_permission_in_exception', true);
 
-        $user = User::create(['name' => 'B', 'email' => 'b@example.com', 'password' => 'x']);
+        $this->actingAs(User::create(['name' => 'B', 'email' => 'b@example.com', 'password' => 'x']));
 
-        expect(Gate::forUser($user)->inspect(ProductPermission::View)->message())
+        expect(Gate::inspect(ProductPermission::View)->message())
             ->toBe('Unauthorized for product.view');
     });
 });
