@@ -170,19 +170,16 @@ describe('PermissionCollection', function (): void {
 
     describe('availableOn', function (): void {
         it('returns only the slugs declared for the surface', function (): void {
-            $registry = resolve(PermissionRegistry::class);
-            $registry->register(SurfacedPermission::class);
+            $this->registry->register(SurfacedPermission::class);
 
-            $slugs = (new PermissionCollection($registry))->availableOn(TestSurface::Machine);
-
-            expect($slugs->all())->toBe(['surfaced.view', 'surfaced.update']);
+            expect($this->collection->availableOn(TestSurface::Machine)->all())
+                ->toBe(['surfaced.view', 'surfaced.update']);
         });
 
         it('returns only what the surface declares, not the whole catalogue', function (): void {
-            $registry = resolve(PermissionRegistry::class);
-            $registry->register(SurfacedPermission::class);
+            $this->registry->register(SurfacedPermission::class);
 
-            expect((new PermissionCollection($registry))->availableOn(TestSurface::Panel)->all())
+            expect($this->collection->availableOn(TestSurface::Panel)->all())
                 ->toBe(['surfaced.update']);
         });
     });
