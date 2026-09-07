@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 use Happenv\LaravelAccessControl\Exceptions\PermissionGroupRequiredException;
 use Happenv\LaravelAccessControl\PermissionReflector;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ClassSurfacedPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Groups\ProductGroup;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\PermissionWithoutGroup;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ProductPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\StoreSettingPermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\SurfacedPermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\TestSurface;
 
 describe('PermissionReflector', function (): void {
     describe('getGroup', function (): void {
@@ -133,6 +136,34 @@ describe('PermissionReflector', function (): void {
             $values = (new PermissionReflector(StoreSettingPermission::class))->getValues();
 
             expect($values->firstWhere('slug', 'store-setting.view')->name)->toBe('View Store Settings');
+        });
+    });
+
+    describe('surfaces', function (): void {
+        it('reads the surfaces a case declares', function (): void {
+            $values = (new PermissionReflector(SurfacedPermission::class))->getValues();
+
+            expect($values->firstWhere('slug', 'surfaced.view')->surfaces)->toBe([TestSurface::Machine])
+                ->and($values->firstWhere('slug', 'surfaced.update')->surfaces)
+                ->toBe([TestSurface::Panel, TestSurface::Machine]);
+        });
+
+        it('declares no surface when the case and its class are silent', function (): void {
+            $values = (new PermissionReflector(SurfacedPermission::class))->getValues();
+
+            expect($values->firstWhere('slug', 'surfaced.delete')->surfaces)->toBe([]);
+        });
+
+        it('falls back to the class attribute when the case is silent', function (): void {
+            $values = (new PermissionReflector(ClassSurfacedPermission::class))->getValues();
+
+            expect($values->firstWhere('slug', 'class-surfaced.view')->surfaces)->toBe([TestSurface::Machine]);
+        });
+
+        it('lets a case REPLACE the class attribute rather than add to it', function (): void {
+            $values = (new PermissionReflector(ClassSurfacedPermission::class))->getValues();
+
+            expect($values->firstWhere('slug', 'class-surfaced.update')->surfaces)->toBe([TestSurface::Panel]);
         });
     });
 
