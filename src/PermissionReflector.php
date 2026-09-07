@@ -58,13 +58,18 @@ final readonly class PermissionReflector
      */
     public function getValues(): Collection
     {
+        // Read ONCE, outside the map: the class-level default is a property of the class, and
+        // asking for it per case made `getSurfaces()` build a `ReflectionClass` for every case that
+        // declared nothing — which is nearly all of them.
+        $classDefault = $this->getClassAttribute(AvailableFor::class);
+
         return (new Collection($this->permission::cases()))
             ->map(fn (PermissionDefinition $case): PermissionDto => new PermissionDto(
                 name: $this->getName($case->name),
                 enum: $case,
                 slug: $case->value,
                 description: $this->getDescription($case->name),
-                surfaces: $this->getSurfaces($case->name),
+                surfaces: $this->getSurfaces($case->name, $classDefault),
             ));
     }
 
@@ -121,10 +126,9 @@ final readonly class PermissionReflector
      *
      * @return list<PermissionSurfaceDefinition>
      */
-    private function getSurfaces(string $enumCase): array
+    private function getSurfaces(string $enumCase, ?object $classDefault): array
     {
-        $attribute = $this->getConstantAttribute($enumCase, AvailableFor::class)
-            ?? $this->getClassAttribute(AvailableFor::class);
+        $attribute = $this->getConstantAttribute($enumCase, AvailableFor::class) ?? $classDefault;
 
         return $attribute instanceof AvailableFor ? $attribute->surfaces : [];
     }
