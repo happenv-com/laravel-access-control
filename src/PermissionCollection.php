@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Happenv\LaravelAccessControl;
 
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
+use Happenv\LaravelAccessControl\Contracts\PermissionSurfaceDefinition;
 use Happenv\LaravelAccessControl\Dto\PermissionDto;
 use Happenv\LaravelAccessControl\Dto\PermissionGroupDto;
 use Happenv\LaravelAccessControl\Dto\PermissionSubjectDto;
@@ -69,5 +70,22 @@ final readonly class PermissionCollection
         return $this->getGroupedPermissions()
             ->flatMap(fn (PermissionGroupDto $group): Collection => $group->subjects->values())
             ->mapWithKeys(fn (PermissionSubjectDto $subject): array => [$subject->enum => $subject]);
+    }
+
+    /**
+     * The slugs DECLARED available on one surface — nothing more.
+     *
+     * Deliberately not "the slugs this surface offers": a surface that grants everything nobody
+     * refused it would get an empty answer here and be right to ignore it. The default belongs to
+     * the surface; this method only reports what was written down.
+     *
+     * @return Collection<int,string>
+     */
+    public function availableOn(PermissionSurfaceDefinition $surface): Collection
+    {
+        return $this->getPermissions()
+            ->filter(fn (PermissionDto $permission): bool => in_array($surface, $permission->surfaces, true))
+            ->map(fn (PermissionDto $permission): string => $permission->slug)
+            ->values();
     }
 }

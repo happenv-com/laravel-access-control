@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Happenv\LaravelAccessControl;
 
+use Happenv\LaravelAccessControl\Attributes\AvailableFor;
 use Happenv\LaravelAccessControl\Attributes\PermissionDescription;
 use Happenv\LaravelAccessControl\Attributes\PermissionGroup;
 use Happenv\LaravelAccessControl\Attributes\PermissionName;
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\Contracts\PermissionGroupDefinition;
+use Happenv\LaravelAccessControl\Contracts\PermissionSurfaceDefinition;
 use Happenv\LaravelAccessControl\Dto\PermissionDto;
 use Happenv\LaravelAccessControl\Dto\PermissionSubjectDto;
 use Happenv\LaravelAccessControl\Exceptions\PermissionGroupRequiredException;
@@ -62,6 +64,7 @@ final readonly class PermissionReflector
                 enum: $case,
                 slug: $case->value,
                 description: $this->getDescription($case->name),
+                surfaces: $this->getSurfaces($case->name),
             ));
     }
 
@@ -108,6 +111,22 @@ final readonly class PermissionReflector
         return $attribute instanceof PermissionDescription
             ? __($attribute->value)
             : null;
+    }
+
+    /**
+     * The case's surfaces, else the class's, else none.
+     *
+     * The `??` IS the replacement rule: a case carrying the attribute never consults the class, so
+     * a class-level default can be narrowed AND widened by a case without a precedence table.
+     *
+     * @return list<PermissionSurfaceDefinition>
+     */
+    private function getSurfaces(string $enumCase): array
+    {
+        $attribute = $this->getConstantAttribute($enumCase, AvailableFor::class)
+            ?? $this->getClassAttribute(AvailableFor::class);
+
+        return $attribute instanceof AvailableFor ? $attribute->surfaces : [];
     }
 
     private function getName(string $enumCase): string
