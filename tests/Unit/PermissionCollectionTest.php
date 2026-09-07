@@ -10,6 +10,8 @@ use Happenv\LaravelAccessControl\PermissionRegistry;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\CategoryPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ProductPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\StoreSettingPermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\SurfacedPermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\TestSurface;
 
 beforeEach(function (): void {
     $this->registry = new PermissionRegistry;
@@ -163,6 +165,25 @@ describe('PermissionCollection', function (): void {
                 ->toContain(ProductPermission::class)
                 ->toContain(CategoryPermission::class)
                 ->toContain(StoreSettingPermission::class);
+        });
+    });
+
+    describe('availableOn', function (): void {
+        it('returns only the slugs declared for the surface', function (): void {
+            $registry = resolve(PermissionRegistry::class);
+            $registry->register(SurfacedPermission::class);
+
+            $slugs = (new PermissionCollection($registry))->availableOn(TestSurface::Machine);
+
+            expect($slugs->all())->toBe(['surfaced.view', 'surfaced.update']);
+        });
+
+        it('returns only what the surface declares, not the whole catalogue', function (): void {
+            $registry = resolve(PermissionRegistry::class);
+            $registry->register(SurfacedPermission::class);
+
+            expect((new PermissionCollection($registry))->availableOn(TestSurface::Panel)->all())
+                ->toBe(['surfaced.update']);
         });
     });
 });
