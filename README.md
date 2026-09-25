@@ -1,9 +1,10 @@
 # Laravel Access Control
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://banners.beyondco.de/Laravel%20Access%20Control.png?theme=dark&packageManager=composer+require&packageName=happenv-com%2Flaravel-access-control&pattern=wiggle&style=style_1&description=Control+access+using+Enums+and+Permission+Voters&md=1&showWatermark=0&fontSize=100px&images=https%3A%2F%2Flaravel.com%2Fimg%2Flogomark.min.svg">
-  <img alt="Laravel Access Control" src="https://banners.beyondco.de/Laravel%20Access%20Control.png?theme=light&packageManager=composer+require&packageName=happenv-com%2Flaravel-access-control&pattern=wiggle&style=style_1&description=Control+access+using+Enums+and+Permission+Voters&md=1&showWatermark=0&fontSize=100px&images=https%3A%2F%2Flaravel.com%2Fimg%2Flogomark.min.svg">
-</picture>
+<div class="filament-hidden">
+
+![Laravel Access Control](art/banner.png)
+
+</div>
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/happenv-com/laravel-access-control.svg?style=flat-square)](https://packagist.org/packages/happenv-com/laravel-access-control)
 [![Total Downloads](https://img.shields.io/packagist/dt/happenv-com/laravel-access-control.svg?style=flat-square)](https://packagist.org/packages/happenv-com/laravel-access-control)
