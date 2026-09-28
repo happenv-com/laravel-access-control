@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 use Happenv\LaravelAccessControl\Exceptions\PermissionGroupRequiredException;
 use Happenv\LaravelAccessControl\PermissionReflector;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\CaseMutatesDataPermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ClassMutatesDataPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ClassSurfacedPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Groups\ProductGroup;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\PartialMutatesDataPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\PermissionWithoutGroup;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ProductPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\StoreSettingPermission;
@@ -164,6 +167,61 @@ describe('PermissionReflector', function (): void {
             $values = (new PermissionReflector(ClassSurfacedPermission::class))->getValues();
 
             expect($values->firstWhere('slug', 'class-surfaced.update')->surfaces)->toBe([TestSurface::Panel]);
+        });
+    });
+
+    describe('mutatesData', function (): void {
+        it('reads what a case declares', function (): void {
+            $reflector = new PermissionReflector(CaseMutatesDataPermission::class);
+
+            expect($reflector->mutatesData(CaseMutatesDataPermission::Update))->toBeTrue()
+                ->and($reflector->mutatesData(CaseMutatesDataPermission::View))->toBeFalse();
+        });
+
+        it('falls back to the class attribute when the case is silent', function (): void {
+            $reflector = new PermissionReflector(ClassMutatesDataPermission::class);
+
+            expect($reflector->mutatesData(ClassMutatesDataPermission::Update))->toBeTrue();
+        });
+
+        it('lets a case REPLACE the class attribute', function (): void {
+            $reflector = new PermissionReflector(ClassMutatesDataPermission::class);
+
+            // `#[MutatesData(false)]` on the case wins over `#[MutatesData]` on the class: a `false`
+            // is an answer, not an absence, so it must not fall through to the class default.
+            expect($reflector->mutatesData(ClassMutatesDataPermission::View))->toBeFalse();
+        });
+
+        it('says false when neither the case nor its class declares anything', function (): void {
+            expect((new PermissionReflector(ProductPermission::class))->mutatesData(ProductPermission::Delete))->toBeFalse()
+                ->and((new PermissionReflector(PartialMutatesDataPermission::class))->mutatesData(PartialMutatesDataPermission::View))->toBeFalse();
+        });
+
+        it('refuses a case of another enum instead of answering for a namesake', function (): void {
+            // Both enums have a `View` case. Reading the reflector's own enum by the case NAME would
+            // answer for ClassMutatesDataPermission::View -- a confident, wrong answer.
+            $reflector = new PermissionReflector(ClassMutatesDataPermission::class);
+
+            expect(fn (): bool => $reflector->mutatesData(ProductPermission::View))
+                ->toThrow(InvalidArgumentException::class);
+        });
+    });
+
+    describe('declaresMutatesData', function (): void {
+        it('is true when the class carries the attribute', function (): void {
+            expect((new PermissionReflector(ClassMutatesDataPermission::class))->declaresMutatesData())->toBeTrue();
+        });
+
+        it('is true when every case carries its own', function (): void {
+            expect((new PermissionReflector(CaseMutatesDataPermission::class))->declaresMutatesData())->toBeTrue();
+        });
+
+        it('is false when only some cases carry it', function (): void {
+            expect((new PermissionReflector(PartialMutatesDataPermission::class))->declaresMutatesData())->toBeFalse();
+        });
+
+        it('is false when nothing carries it', function (): void {
+            expect((new PermissionReflector(ProductPermission::class))->declaresMutatesData())->toBeFalse();
         });
     });
 

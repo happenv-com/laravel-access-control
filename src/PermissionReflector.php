@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Happenv\LaravelAccessControl;
 
 use Happenv\LaravelAccessControl\Attributes\AvailableFor;
+use Happenv\LaravelAccessControl\Attributes\MutatesData;
 use Happenv\LaravelAccessControl\Attributes\PermissionDescription;
 use Happenv\LaravelAccessControl\Attributes\PermissionGroup;
 use Happenv\LaravelAccessControl\Attributes\PermissionName;
@@ -16,6 +17,7 @@ use Happenv\LaravelAccessControl\Dto\PermissionSubjectDto;
 use Happenv\LaravelAccessControl\Exceptions\PermissionGroupRequiredException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use ReflectionClass;
 use ReflectionClassConstant;
 
@@ -107,6 +109,58 @@ final readonly class PermissionReflector
             ->beforeLast('Permission')
             ->kebab()
             ->toString();
+    }
+
+    /**
+     * Whether exercising the permission writes data: the case's `MutatesData`, else the class's,
+     * else `false`.
+     *
+     * The `??` is the same replacement rule as for surfaces, and it sits on the VALUE, not the
+     * attribute: `#[MutatesData(false)]` on a case yields `false`, which `??` keeps, so a case can
+     * opt out of a class-wide `true`.
+     *
+     * A case of ANOTHER enum is refused rather than read. The attribute is looked up by the case's
+     * name on this reflector's enum, and permission enums share case names (`View`, `Update`) —
+     * reading a stranger's case would answer confidently for its namesake.
+     *
+     * @throws InvalidArgumentException when the case does not belong to this reflector's enum
+     */
+    public function mutatesData(PermissionDefinition $permission): bool
+    {
+        if (! $permission instanceof $this->permission) {
+            throw new InvalidArgumentException(sprintf(
+                'Permission %s::%s does not belong to %s.',
+                $permission::class,
+                $permission->name,
+                $this->permission,
+            ));
+        }
+
+        return $this->getConstantAttribute($permission->name, MutatesData::class)->mutates
+            ?? $this->getClassAttribute(MutatesData::class)->mutates
+            ?? false;
+    }
+
+    /**
+     * Whether the enum answers `mutatesData()` for every case by DECLARATION rather than by the
+     * silent default: the class carries the attribute, or each case carries its own.
+     *
+     * The question an application asks to keep its catalogue classified — a new case added to a
+     * partially annotated enum would otherwise read as "does not write" without anybody deciding so.
+     */
+    public function declaresMutatesData(): bool
+    {
+        if ($this->getClassAttribute(MutatesData::class) instanceof MutatesData) {
+            return true;
+        }
+
+        foreach ($this->permission::cases() as $case) {
+            if (! $this->getConstantAttribute($case->name, MutatesData::class) instanceof MutatesData) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function getDescription(string $enumCase): ?string

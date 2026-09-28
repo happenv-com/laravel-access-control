@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
+use Happenv\LaravelAccessControl\Facades\AccessControl;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Models\User;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\CategoryPermission;
 use Happenv\LaravelAccessControl\Traits\HasRoles;
@@ -146,6 +148,57 @@ describe('HasRoles trait', function (): void {
     });
 });
 
+describe('HasRoles trait under a restriction', function (): void {
+    beforeEach(function (): void {
+        $this->userWithRoles = new class
+        {
+            use HasRoles;
+
+            public function getRoles(): iterable
+            {
+                return [
+                    new class
+                    {
+                        public function hasPermissionTo($permission): bool
+                        {
+                            return true;
+                        }
+                    },
+                ];
+            }
+        };
+    });
+
+    it('withholds a restricted permission even after remembering it was granted', function (): void {
+        // The memo lives as long as the model instance, and a restriction can begin or end within
+        // that time. It records what the ROLES grant; the restriction is asked afresh every time.
+        $readOnly = false;
+
+        AccessControl::restrictUsing(function (PermissionDefinition $permission) use (&$readOnly): bool {
+            return $readOnly;
+        });
+
+        expect($this->userWithRoles->hasPermissionTo(CategoryPermission::Create))->toBeTrue();
+
+        $readOnly = true;
+
+        expect($this->userWithRoles->hasPermissionTo(CategoryPermission::Create))->toBeFalse();
+
+        $readOnly = false;
+
+        expect($this->userWithRoles->hasPermissionTo(CategoryPermission::Create))->toBeTrue();
+    });
+
+    it('checks an ability string by the roles alone', function (): void {
+        // Restrictions are keyed by permission enum; the trait also accepts plain ability strings
+        // and must not hand one to a closure typed for an enum.
+        AccessControl::restrictUsing(fn (PermissionDefinition $permission): bool => true);
+
+        expect($this->userWithRoles->hasPermissionTo('category.create'))->toBeTrue()
+            ->and($this->userWithRoles->hasPermissionTo(CategoryPermission::Create))->toBeFalse();
+    });
+});
+
 describe('HasRolesAndPermissions trait', function (): void {
     it('checks direct permissions first', function (): void {
         $this->user->givePermissionTo(CategoryPermission::Delete);
@@ -155,6 +208,34 @@ describe('HasRolesAndPermissions trait', function (): void {
 
     it('returns false when user has no permissions or roles with permission', function (): void {
         expect($this->user->hasPermissionTo(CategoryPermission::Create))->toBeFalse();
+    });
+
+    it('stores a direct grant even when a role already grants it', function (): void {
+        // A direct grant is its own fact. Skipping it because a role happens to grant the same
+        // permission today would take it away the day the role is withdrawn.
+        $userWithRole = new class extends User
+        {
+            protected $table = 'users';
+
+            public function getRoles(): iterable
+            {
+                return [
+                    new class
+                    {
+                        public function hasPermissionTo($permission): bool
+                        {
+                            return true;
+                        }
+                    },
+                ];
+            }
+        };
+
+        $userWithRole->fill(['name' => 'Role User', 'email' => 'role@example.com', 'password' => 'password'])->save();
+
+        $userWithRole->givePermissionTo(CategoryPermission::Delete);
+
+        expect($userWithRole->fresh()->permissions)->toBe(['category.delete']);
     });
 
     it('it combines both traits correctly', function (): void {

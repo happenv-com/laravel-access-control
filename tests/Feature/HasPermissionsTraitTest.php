@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
+use Happenv\LaravelAccessControl\Facades\AccessControl;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Models\User;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ProductPermission;
 
@@ -93,6 +95,30 @@ describe('HasPermissions trait', function (): void {
             $this->user->revokePermissionTo(ProductPermission::Create);
 
             expect($this->user->fresh()->permissions)->toBeEmpty();
+        });
+    });
+
+    describe('under a restriction', function (): void {
+        it('denies a permission the user holds', function (): void {
+            $this->user->update(['permissions' => ['product.view', 'product.delete']]);
+
+            AccessControl::restrictUsing(fn (PermissionDefinition $permission): bool => $permission === ProductPermission::Delete);
+
+            expect($this->user->hasPermissionTo(ProductPermission::Delete))->toBeFalse()
+                ->and($this->user->hasPermissionTo(ProductPermission::View))->toBeTrue()
+                // Withheld, not revoked: the grant is still stored for when the restriction ends.
+                ->and($this->user->fresh()->permissions)->toContain('product.delete');
+        });
+
+        it('grants without duplicating', function (): void {
+            // Deduplicating on `hasPermissionTo()` would read a restricted grant as missing and store
+            // it again on every call.
+            AccessControl::restrictUsing(fn (PermissionDefinition $permission): bool => $permission === ProductPermission::View);
+
+            $this->user->givePermissionTo(ProductPermission::View);
+            $this->user->givePermissionTo(ProductPermission::View);
+
+            expect($this->user->fresh()->permissions)->toBe(['product.view']);
         });
     });
 

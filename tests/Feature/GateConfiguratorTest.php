@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use Happenv\LaravelAccessControl\Contracts\AuthControllable;
+use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
+use Happenv\LaravelAccessControl\Facades\AccessControl;
 use Happenv\LaravelAccessControl\GateConfigurator;
 use Happenv\LaravelAccessControl\PermissionRegistry;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Models\Product;
@@ -9,6 +12,7 @@ use Happenv\LaravelAccessControl\Tests\Fixtures\Models\User;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ProductPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Voters\ProductVoter;
 use Happenv\LaravelAccessControl\VoterRegistry;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\Gate;
 
 beforeEach(function (): void {
@@ -156,5 +160,75 @@ describe('display_permission_in_exception', function (): void {
 
         expect(Gate::inspect(ProductPermission::View)->message())
             ->toBe('Unauthorized for product.view');
+    });
+});
+
+describe('runtime restrictions', function (): void {
+    it('refuses a restricted permission in the words it refuses a missing one', function (bool $display, string $message): void {
+        // The refusal text is a contract consumers publish verbatim and match on. A restriction is,
+        // on the caller's side, the same problem as a missing grant -- this principal cannot do this
+        // now -- so it must not introduce a third message for every consumer to learn.
+        config()->set('access-control.display_permission_in_exception', $display);
+
+        $withoutPermissions = User::create(['name' => 'C', 'email' => 'c@example.com', 'password' => 'x', 'permissions' => []]);
+
+        // Taken BEFORE the restriction exists: afterwards the gate refuses this user on the
+        // restriction too, and the comparison below would hold two restricted refusals side by side.
+        $missing = Gate::forUser($withoutPermissions)->inspect(ProductPermission::Delete);
+
+        AccessControl::restrictUsing(fn (PermissionDefinition $permission): bool => $permission === ProductPermission::Delete);
+
+        $restricted = Gate::forUser($this->user)->inspect(ProductPermission::Delete);
+
+        expect($restricted->denied())->toBeTrue()
+            ->and($restricted->message())->toBe($message)
+            ->and($restricted->message())->toBe($missing->message());
+    })->with([
+        'without naming the permission' => [false, 'Unauthorized.'],
+        'naming the permission' => [true, 'Unauthorized for product.delete'],
+    ]);
+
+    it('still allows what is not restricted', function (): void {
+        AccessControl::restrictUsing(fn (PermissionDefinition $permission): bool => $permission === ProductPermission::Delete);
+
+        $this->actingAs($this->user);
+
+        expect(Gate::allows(ProductPermission::View))->toBeTrue()
+            ->and(Gate::allows(ProductPermission::Delete))->toBeFalse();
+    });
+
+    it('still tells a guest it is unauthenticated', function (): void {
+        AccessControl::restrictUsing(fn (PermissionDefinition $permission): bool => true);
+
+        expect(Gate::inspect(ProductPermission::View)->message())->toBe('Unauthenticated.');
+    });
+
+    it('refuses even a principal whose own check ignores restrictions', function (): void {
+        // An application may answer `hasPermissionTo()` itself -- an administrator short-circuit is
+        // the usual case -- and never reach the package's traits. The gate must hold the line alone.
+        $administrator = new class extends Authenticatable implements AuthControllable
+        {
+            public function hasPermissionTo(PermissionDefinition $permission): bool
+            {
+                return true;
+            }
+        };
+
+        $readOnly = false;
+
+        AccessControl::restrictUsing(function (PermissionDefinition $permission) use (&$readOnly): bool {
+            return $readOnly;
+        });
+
+        expect(Gate::forUser($administrator)->allows(ProductPermission::View))->toBeTrue();
+
+        $readOnly = true;
+
+        expect(Gate::forUser($administrator)->inspect(ProductPermission::View)->message())->toBe('Unauthorized.');
+
+        // Configured once, asked every time: the same gate lets it through again once the condition ends.
+        $readOnly = false;
+
+        expect(Gate::forUser($administrator)->allows(ProductPermission::View))->toBeTrue();
     });
 });

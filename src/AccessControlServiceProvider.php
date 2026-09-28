@@ -13,6 +13,7 @@ class AccessControlServiceProvider extends ServiceProvider
 
         $this->app->singleton(fn (): PermissionRegistry => new PermissionRegistry);
         $this->app->singleton(fn (): VoterRegistry => new VoterRegistry);
+        $this->app->singleton(fn (): PermissionRestrictions => new PermissionRestrictions);
     }
 
     public function boot(): void
