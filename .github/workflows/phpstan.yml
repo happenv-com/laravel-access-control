@@ -62,3 +62,6 @@ jobs:
 
       - name: Run PHPStan
         run: ./vendor/bin/phpstan --error-format=github
+
+      - name: Run Rector (dry-run)
+        run: ./vendor/bin/rector --dry-run

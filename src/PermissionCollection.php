@@ -29,15 +29,13 @@ final readonly class PermissionCollection
             $group = $reflector->getGroup();
             $subject = $reflector->getSubject();
 
-            if (! isset($grouped[$group->getSlug()])) {
-                $grouped[$group->getSlug()] = new PermissionGroupDto(
-                    name: $group->getName(),
-                    slug: $group->getSlug(),
-                    children: new Collection,
-                    description: $group->getDescription(),
-                    subjects: new Collection,
-                );
-            }
+            $grouped[$group->getSlug()] ??= new PermissionGroupDto(
+                name: $group->getName(),
+                slug: $group->getSlug(),
+                children: new Collection,
+                description: $group->getDescription(),
+                subjects: new Collection,
+            );
 
             $grouped[$group->getSlug()]->children = $grouped[$group->getSlug()]->children->concat($subject->children);
 
