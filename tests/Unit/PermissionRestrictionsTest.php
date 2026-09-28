@@ -32,6 +32,16 @@ describe('PermissionRestrictions', function (): void {
             ->and($restrictions->isRestricted(ProductPermission::View))->toBeFalse();
     });
 
+    it('fails closed on a closure that answers truthy rather than true', function (): void {
+        // The closure is documented to return a bool, but nothing in PHP makes it. A restriction
+        // that says "yes" in the wrong type must still restrict: allowing is the unsafe mistake.
+        $restrictions = new PermissionRestrictions;
+
+        $restrictions->restrictUsing(fn (PermissionDefinition $permission): int => 1);
+
+        expect($restrictions->isRestricted(ProductPermission::View))->toBeTrue();
+    });
+
     it('asks its closures again on every check', function (): void {
         // A restriction follows a condition that can start and end while the process lives -- a
         // long-running worker serves many requests between two boots. Answering from anything but a

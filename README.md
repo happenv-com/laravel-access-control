@@ -464,6 +464,15 @@ A few things to keep in mind:
   `AccessControl::isRestricted()` there if that method is called outside the Gate.
 - **Ability strings are not restricted.** Restrictions are keyed by permission enum;
   `HasRoles::hasPermissionTo('product.delete')` is answered by the roles alone.
+- **A `Gate::before()` callback that returns `true` bypasses restrictions.** That is the usual
+  super-admin pattern, and Laravel skips the ability's closure — where the restriction is checked —
+  whenever a `before` callback returns a non-null result. Ask `AccessControl::isRestricted()` inside
+  such a callback, or let it return `null` for restricted permissions.
+- **On a grant container, `hasPermissionTo()` now means "may act", not "is stored".** A `Role`
+  using `HasPermissions` answers `false` for a restricted permission it holds. A role editor that
+  pre-fills its checkboxes from `hasPermissionTo()` shows the restricted grants unchecked, and saving
+  the form during a restriction revokes them. Read the stored grants (`getPermissions()`) wherever
+  you edit or display what was granted.
 
 ## How Voters Work
 

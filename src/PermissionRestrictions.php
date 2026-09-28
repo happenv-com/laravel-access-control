@@ -34,7 +34,8 @@ final class PermissionRestrictions
     private array $restrictions = [];
 
     /**
-     * Add a restriction. The closure returns `true` to withhold the permission it is given.
+     * Add a restriction. The closure returns `true` to withhold the permission it is given (any
+     * truthy value does — see {@see self::isRestricted()}).
      *
      * Restrictions only ever ADD: a permission is restricted when ANY closure says so, so one
      * condition can never lift what another withholds.
@@ -46,10 +47,17 @@ final class PermissionRestrictions
         $this->restrictions[] = $restriction;
     }
 
+    /**
+     * Whether ANY restriction withholds the permission.
+     *
+     * FAILS CLOSED: any truthy answer restricts, not only `true`. The closures are documented to
+     * return a bool, but nothing in PHP enforces it, and a restriction that says "yes" in the wrong
+     * type must not quietly let the permission through — allowing is the unsafe mistake here.
+     */
     public function isRestricted(PermissionDefinition $permission): bool
     {
         foreach ($this->restrictions as $restriction) {
-            if ($restriction($permission) === true) {
+            if ((bool) $restriction($permission)) {
                 return true;
             }
         }

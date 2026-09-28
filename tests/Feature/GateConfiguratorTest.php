@@ -172,9 +172,12 @@ describe('runtime restrictions', function (): void {
 
         $withoutPermissions = User::create(['name' => 'C', 'email' => 'c@example.com', 'password' => 'x', 'permissions' => []]);
 
+        // Taken BEFORE the restriction exists: afterwards the gate refuses this user on the
+        // restriction too, and the comparison below would hold two restricted refusals side by side.
+        $missing = Gate::forUser($withoutPermissions)->inspect(ProductPermission::Delete);
+
         AccessControl::restrictUsing(fn (PermissionDefinition $permission): bool => $permission === ProductPermission::Delete);
 
-        $missing = Gate::forUser($withoutPermissions)->inspect(ProductPermission::Delete);
         $restricted = Gate::forUser($this->user)->inspect(ProductPermission::Delete);
 
         expect($restricted->denied())->toBeTrue()
