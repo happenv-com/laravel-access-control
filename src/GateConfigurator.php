@@ -76,7 +76,7 @@ final readonly class GateConfigurator
     private function refusal(PermissionDefinition $permission): string
     {
         return config('access-control.display_permission_in_exception') === true
-            ? 'Unauthorized for ' . (string) $permission->value
+            ? 'Unauthorized for ' . $permission->value
             : 'Unauthorized.';
     }
 }
