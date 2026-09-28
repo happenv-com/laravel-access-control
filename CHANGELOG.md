@@ -2,6 +2,24 @@
 
 All notable changes to `access-control` will be documented in this file.
 
+## 2.3.0 - 2026-09-28
+
+### Added
+
+- `#[MutatesData]` — declares whether exercising a permission writes data. On the enum class it is the default for every case; a case carrying its own replaces it (`#[MutatesData(false)]` opts a case out). A permission declaring nothing reads as not writing.
+- `PermissionReflector::mutatesData(PermissionDefinition)` — the case's declaration, else the class's, else `false`. A case of another enum is refused with `InvalidArgumentException` instead of being answered for its namesake.
+- `PermissionReflector::declaresMutatesData()` — whether every case is answered by a declaration (the class carries the attribute, or each case does), for applications that want their whole catalogue classified.
+- Runtime restrictions: `PermissionRestrictions` (a singleton), with `AccessControl::restrictUsing(Closure)` and `AccessControl::isRestricted(PermissionDefinition)` on the class and the facade. A restriction withholds a permission from every principal while its closure returns `true`, without touching anybody's grants. The closures are asked on every check and nothing is cached, so a restriction is correct under Laravel Octane.
+
+### Changed
+
+- The Gate refuses a restricted permission for every authenticated principal, before its `hasPermissionTo()`, with the SAME message as a missing permission (`Unauthorized.` / `Unauthorized for <permission>`). Guests are still told `Unauthenticated.`.
+- `HasPermissions::hasPermissionTo()` and `HasRoles::hasPermissionTo()` answer `false` for a restricted permission. `HasRoles` asks before its per-instance memo, so a restriction that begins or ends mid-request is honoured. Ability strings are not restricted.
+- `HasPermissions::givePermissionTo()` deduplicates by the STORED grants instead of `hasPermissionTo()`. Under a restriction the old check pushed the same grant again on every call; on a model using `HasRolesAndPermissions` it also skipped a direct grant that a role already provided — that grant is now stored.
+- `GateConfigurator` takes `PermissionRestrictions` as a third constructor argument.
+
+**Upgrading:** nothing to do for applications that resolve `GateConfigurator` from the container (the package's provider does). Code relying on `givePermissionTo()` skipping a permission a role already grants will now store the direct grant.
+
 ## 2.1.1 - 2026-09-06
 
 ### Fixed

@@ -7,6 +7,9 @@ namespace Happenv\LaravelAccessControl\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
+ * @method static void restrictUsing(\Closure(\Happenv\LaravelAccessControl\Contracts\PermissionDefinition): bool $restriction)
+ * @method static bool isRestricted(\Happenv\LaravelAccessControl\Contracts\PermissionDefinition $permission)
+ *
  * @see \Happenv\LaravelAccessControl\AccessControl
  */
 class AccessControl extends Facade

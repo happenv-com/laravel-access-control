@@ -379,9 +379,95 @@ $subjects = $collection->getSubjects();
 
 This is useful for building permission management UIs.
 
+### 6. Restricting Permissions at Runtime (Optional)
+
+Sometimes a permission has to be withheld from **everybody** for a while, whatever they were
+granted — a read-only mode, a maintenance window, a suspended organisation. A restriction does
+that without touching anybody's grants: nothing is revoked, and when the condition ends everybody
+holds exactly what they held before.
+
+#### Declaring which permissions write data
+
+Mark the permissions whose use writes data with `#[MutatesData]`. On the enum CLASS it is the
+default for every case; a case carrying its own REPLACES that default, so `#[MutatesData(false)]`
+opts a case out:
+
+```php
+use Happenv\LaravelAccessControl\Attributes\MutatesData;
+
+#[PermissionGroup(ProductGroup::class)]
+#[MutatesData]
+enum ProductPermission: string implements PermissionDefinition
+{
+    #[MutatesData(false)]
+    case View = 'product.view';
+
+    case Create = 'product.create';
+    case Update = 'product.update';
+    case Delete = 'product.delete';
+}
+```
+
+Read it back through the reflector:
+
+```php
+use Happenv\LaravelAccessControl\PermissionReflector;
+
+$reflector = new PermissionReflector(ProductPermission::class);
+
+$reflector->mutatesData(ProductPermission::Delete); // true  (the class default)
+$reflector->mutatesData(ProductPermission::View);   // false (the case replaces it)
+$reflector->declaresMutatesData();                  // true  (every case is answered by a declaration)
+```
+
+A permission that declares nothing reads as **not** writing. If every permission of your
+application must be classified, assert `declaresMutatesData()` over your enums in a test — an enum
+annotated case by case would otherwise let a new, unannotated case read as "does not write" without
+anybody deciding so.
+
+#### Registering a restriction
+
+Register a closure in a service provider's `boot()`. It receives the permission being checked and
+returns `true` to withhold it. Here, a read-only mode that withholds every permission that writes:
+
+```php
+use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
+use Happenv\LaravelAccessControl\Facades\AccessControl;
+use Happenv\LaravelAccessControl\PermissionReflector;
+
+AccessControl::restrictUsing(
+    fn (PermissionDefinition $permission): bool => ReadOnlyMode::isActive()
+        && (new PermissionReflector($permission::class))->mutatesData($permission),
+);
+```
+
+While the closure returns `true` for a permission:
+
+- the Gate refuses it with **the same message as a missing permission** (`Unauthorized.`, or
+  `Unauthorized for product.delete` with `display_permission_in_exception`) — to the caller it is
+  the same problem, and the message is a contract consumers match on;
+- `hasPermissionTo()` from `HasPermissions`, `HasRoles` and `HasRolesAndPermissions` returns
+  `false` — `HasRoles` asks before its per-instance memo, so a restriction that begins mid-request
+  is honoured;
+- the stored grants are untouched: `givePermissionTo()` and `revokePermissionTo()` keep working.
+
+Several closures may be registered; a permission is restricted when **any** of them says so.
+`AccessControl::isRestricted($permission)` asks the same question directly.
+
+A few things to keep in mind:
+
+- **Register at boot, answer fresh.** The closures are called on every check and nothing is cached,
+  which is what keeps restrictions correct under Laravel Octane. Keep them cheap, and read the
+  condition from its source or from something request-scoped — never from a value captured at boot.
+- **A model with its own `hasPermissionTo()`** (an administrator short-circuit, say) is still
+  refused by the Gate, but its own method answers whatever it answers. Ask
+  `AccessControl::isRestricted()` there if that method is called outside the Gate.
+- **Ability strings are not restricted.** Restrictions are keyed by permission enum;
+  `HasRoles::hasPermissionTo('product.delete')` is answered by the roles alone.
+
 ## How Voters Work
 
-1. When a permission check is performed via Laravel's Gate, the package first verifies if the user has the permission (via `$user->hasPermissionTo()`)
+1. When a permission check is performed via Laravel's Gate, the package first refuses a permission withheld by a [runtime restriction](#6-restricting-permissions-at-runtime-optional), then verifies if the user has the permission (via `$user->hasPermissionTo()`)
 2. If the user has the permission, all registered voters for that permission are executed
 3. **If any voter returns `Response::deny()`, the authorization fails**
 4. Only if all voters return `Response::allow()`, the authorization succeeds
