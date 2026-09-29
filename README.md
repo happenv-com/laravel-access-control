@@ -676,8 +676,9 @@ The principal is loaded with the user provider model of the default guard. Pick 
 `--guard=admin`, or name the model with `--model="App\Models\Admin"`. It has to implement
 `AuthControllable`.
 
-For a user who stores `product.update` directly and holds an `Editor` role storing `gallery.view`,
-with the rules from the previous section, `permission:graph` prints:
+For example, suppose `gallery.view` requires `product.view`, `gallery.manage` is implied by
+`product.update`, and both enums sit in one `Products` group. A user who stores `product.update`
+directly and holds an `Editor` role (a `HoldsGrants` role storing `gallery.view`) is drawn as:
 
 ```
 Jan
@@ -704,14 +705,21 @@ its state:
 |---|---|
 | `allowed` | effective and stored |
 | `implied` | effective without being stored — something the principal holds implies it |
+| `overridden` | effective because the principal's own `hasPermissionTo()` says so, though nothing stores or implies it — an administrator short-circuit |
 | `restricted` | the rules allow it; a runtime restriction withholds it |
-| `missing requirement` | granted, but a permission it requires is not active |
+| `missing-requirement` | granted (stored or implied), but a permission it requires is not active |
 | `conflict` | it loses a conflict it declares |
 | `denied` | the principal's own `hasPermissionTo()` refuses it for another reason |
-| `not granted` | drawn only because a rule points at it |
+| `not-granted` | drawn only because a rule points at it |
+
+The tree prints the states with spaces (`missing requirement`). `toArray()` and the JSON output carry
+them as listed.
 
 A role that implements `HoldsGrants` shows what it stores. Any other role is asked about each
-permission, and its edges read "may act".
+permission, and its edges read "may act". Such a role can only say whether it may act, with its own
+rules and any restriction already applied, so **what it withholds is not drawn at all**. In a
+read-only mode, for example, its restricted permissions disappear instead of showing as `restricted`.
+Implement `HoldsGrants` on your roles to get a diagram that shows everything.
 
 #### In your application
 
