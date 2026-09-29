@@ -20,6 +20,10 @@ All notable changes to `access-control` will be documented in this file.
 - `PermissionDto::$rules`: every `PermissionRuleDto` a permission declares or is the target of. `PermissionCollection` attaches them with the reason translated.
 - `getEffectivePermissions()` on `HasPermissions`, `HasRoles` and `HasRolesAndPermissions`, and `AccessControl::effectivePermissions($principal)` for any `AuthControllable`: every registered permission the principal may act on now, as a `Collection` of enum cases. Rules and restrictions count; voters do not.
 - `PermissionReflector::getRules()`.
+- Permission graphs:
+  - `php artisan permission:graph` draws the catalogue's rules, and `permission:graph {key}` draws what a principal may do and why. It takes `--format=tree|mermaid|dot|json`, `--model`, `--guard` and `--schema-version`.
+  - The same graphs are available in code through `AccessControl::diagram()`: `catalogue()`, `forPrincipal($user)`, `render($diagram, $format)` and `toArray()`.
+  - `Contracts\DescribesGrantHolder` names a principal or role. Renderers tagged `access-control.diagram-renderers` add or replace formats.
 
 ### Changed
 
