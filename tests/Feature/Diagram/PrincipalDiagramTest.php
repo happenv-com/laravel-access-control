@@ -13,11 +13,15 @@ use Happenv\LaravelAccessControl\Diagram\PermissionState;
 use Happenv\LaravelAccessControl\Diagram\PrincipalDiagramBuilder;
 use Happenv\LaravelAccessControl\Facades\AccessControl;
 use Happenv\LaravelAccessControl\PermissionRegistry;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Conditions\Flags;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Models\InMemoryAccount;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Models\InMemoryGrantRole;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Models\InMemoryRole;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Models\NamedGrantRole;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Models\RoleHolder;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Models\SelfAnsweringAccount;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Models\User;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Conditions\ConditionRulePermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\BasicRulePermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\CrossRolePermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\GalleryPermission;
@@ -130,6 +134,14 @@ describe('PrincipalDiagramBuilder', function (): void {
 
         expect(statesOf($restricted)['permission:cross-role.update'])->toBe(PermissionState::Restricted->value)
             ->and(statesOf(resolve(PrincipalDiagramBuilder::class)->build($refusing))['permission:cross-role.view'])->toBe(PermissionState::Denied->value);
+    });
+
+    it('draws a restricted permission as restricted, not allowed, for an account answering hasPermissionTo() itself', function (): void {
+        AccessControl::restrictUsing(fn (PermissionDefinition $permission): bool => $permission === CrossRolePermission::Update);
+
+        $diagram = resolve(PrincipalDiagramBuilder::class)->build(new SelfAnsweringAccount);
+
+        expect($diagram->node('permission:cross-role.update')?->state)->toBe(PermissionState::Restricted);
     });
 
     it('draws a principal using neither trait by what it answers', function (): void {
@@ -263,5 +275,36 @@ describe('PrincipalDiagramBuilder', function (): void {
             ->and(statesOf($drawn)['permission:cross-role.view'])->toBe('allowed')
             ->and(fn (): PermissionDiagram => resolve(PrincipalDiagramBuilder::class)->build(new RoleHolder(['editor'])))
             ->toThrow(InvalidArgumentException::class, 'Role 0 of ' . RoleHolder::class . ' is string, which does not answer hasPermissionTo(); it cannot be drawn.');
+    });
+});
+
+describe('conditions', function (): void {
+    beforeEach(function (): void {
+        Flags::reset();
+
+        resolve(PermissionRegistry::class)->register(ConditionRulePermission::class);
+    });
+
+    it('draws a permission the account fails a condition of as unmet-condition', function (): void {
+        $account = new InMemoryAccount(['condition-rule.alone']);
+
+        expect(AccessControl::diagram()->forPrincipal($account)->node('permission:condition-rule.alone')?->state)
+            ->toBe(PermissionState::UnmetCondition);
+
+        Flags::raise($account);
+
+        expect(AccessControl::diagram()->forPrincipal($account)->node('permission:condition-rule.alone')?->state)
+            ->toBe(PermissionState::Allowed);
+    });
+
+    it('draws it so for an account answering hasPermissionTo() itself too', function (): void {
+        expect(AccessControl::diagram()->forPrincipal(new SelfAnsweringAccount)->node('permission:condition-rule.alone')?->state)
+            ->toBe(PermissionState::UnmetCondition);
+    });
+
+    it('colours the state in Mermaid', function (): void {
+        $diagram = AccessControl::diagram()->forPrincipal(new InMemoryAccount(['condition-rule.alone']));
+
+        expect(AccessControl::diagram()->render($diagram, 'mermaid'))->toContain('classDef state_unmet_condition');
     });
 });

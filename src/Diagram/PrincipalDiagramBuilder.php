@@ -9,6 +9,7 @@ use Happenv\LaravelAccessControl\Contracts\AuthControllable;
 use Happenv\LaravelAccessControl\Contracts\HoldsGrants;
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\PermissionCollection;
+use Happenv\LaravelAccessControl\PermissionConditions;
 use Happenv\LaravelAccessControl\PermissionResolver;
 use Happenv\LaravelAccessControl\PermissionRestrictions;
 use Happenv\LaravelAccessControl\PermissionRuleType;
@@ -30,6 +31,7 @@ final readonly class PrincipalDiagramBuilder
         private PermissionCollection $collection,
         private PermissionResolver $resolver,
         private PermissionRestrictions $restrictions,
+        private PermissionConditions $conditions,
     ) {}
 
     /**
@@ -218,8 +220,12 @@ final readonly class PrincipalDiagramBuilder
     private function state(AuthControllable $principal, PermissionDefinition $permission, Closure $isStored): PermissionState
     {
         $resolution = $this->resolver->explain($permission, $isStored);
+        $acts = $principal->hasPermissionTo($permission);
 
-        if ($principal->hasPermissionTo($permission)) {
+        // Asked of every account — also one answering hasPermissionTo() itself — as the gate asks.
+        $unmet = $this->conditions->unmet($permission, $principal) !== [];
+
+        if ($acts && ! $unmet && ! $this->restrictions->isRestricted($permission)) {
             if ($isStored($permission)) {
                 return PermissionState::Allowed;
             }
@@ -228,8 +234,12 @@ final readonly class PrincipalDiagramBuilder
             return $resolution->allowed ? PermissionState::Implied : PermissionState::Overridden;
         }
 
-        if ($resolution->allowed) {
-            return $this->restrictions->isRestricted($permission) ? PermissionState::Restricted : PermissionState::Denied;
+        if ($resolution->allowed || $acts) {
+            return match (true) {
+                $this->restrictions->isRestricted($permission) => PermissionState::Restricted,
+                $unmet => PermissionState::UnmetCondition,
+                default => PermissionState::Denied,
+            };
         }
 
         if (! $resolution->granted) {

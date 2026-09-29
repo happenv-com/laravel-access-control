@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Happenv\LaravelAccessControl\Dto;
 
+use Happenv\LaravelAccessControl\Contracts\PermissionCondition;
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\Contracts\PermissionSurfaceDefinition;
 use Happenv\LaravelAccessControl\PermissionCollection;
@@ -35,5 +36,13 @@ final class PermissionDto
          * @var list<PermissionRuleDto>
          */
         public array $rules = [],
+        /**
+         * The conditions an account must meet for it to be in effect, the enum's first — see
+         * {@see PermissionCondition}. Attached by {@see PermissionCollection}; empty on a DTO built by
+         * {@see PermissionReflector} alone.
+         *
+         * @var list<PermissionCondition>
+         */
+        public array $conditions = [],
     ) {}
 }

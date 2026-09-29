@@ -9,7 +9,9 @@ use Happenv\LaravelAccessControl\PermissionCollection;
 use Happenv\LaravelAccessControl\PermissionReflector;
 use Happenv\LaravelAccessControl\PermissionRegistry;
 use Happenv\LaravelAccessControl\PermissionRuleType;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Conditions\RequiresFlag;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\CategoryPermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Conditions\ConditionedPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ProductPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ClosureReasonPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\GalleryPermission;
@@ -246,4 +248,14 @@ describe('PermissionCollection rules', function (): void {
 
         expect($edit->rules[0]->reason)->toBe('Edit Closure Reason needs View Closure Reason');
     })->skip(PHP_VERSION_ID < 80500, 'A closure is an attribute argument only from PHP 8.5.');
+});
+
+it('attaches every condition of a permission, the enum\'s first', function (): void {
+    $registry = new PermissionRegistry;
+    $registry->register(ConditionedPermission::class);
+
+    $permissions = (new PermissionCollection($registry))->getPermissions();
+
+    expect($permissions->firstWhere('slug', 'conditioned.plain')->conditions)->toEqual([new RequiresFlag('verified')])
+        ->and($permissions->firstWhere('slug', 'conditioned.guarded')->conditions)->toEqual([new RequiresFlag('verified'), new RequiresFlag('mfa')]);
 });

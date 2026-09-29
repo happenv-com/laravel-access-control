@@ -22,17 +22,19 @@ final class PermissionGraphCommand extends Command
                             {--format=tree : Output format (tree, mermaid, dot, json, or one an application registered)}
                             {--model= : The principal\'s model class; defaults to the user provider model of the guard}
                             {--guard= : The guard whose user provider model to use; defaults to the default guard}
-                            {--schema-version=1 : Machine API schema version}';
+                            {--schema-version=2 : Machine API schema version}';
 
     protected $description = 'Draw the permission rules of the catalogue, or what a principal may do and why';
 
     public function handle(PermissionDiagrams $diagrams): int
     {
-        if ((string) $this->option('schema-version') !== (string) PermissionDiagram::SCHEMA_VERSION) {
+        $version = (string) $this->option('schema-version');
+
+        if (! in_array($version, array_map(strval(...), PermissionDiagram::SCHEMA_VERSIONS), true)) {
             $this->error(sprintf(
-                'Unsupported schema version [%s]. Supported: %d.',
-                $this->option('schema-version'),
-                PermissionDiagram::SCHEMA_VERSION,
+                'Unsupported schema version [%s]. Supported: %s.',
+                $version,
+                implode(', ', PermissionDiagram::SCHEMA_VERSIONS),
             ));
 
             return self::FAILURE;
@@ -41,9 +43,11 @@ final class PermissionGraphCommand extends Command
         try {
             $key = $this->argument('principal');
 
-            $diagram = $key === null
+            $diagram = (
+                $key === null
                 ? $diagrams->catalogue()
-                : $diagrams->forPrincipal($this->principal((string) $key));
+                : $diagrams->forPrincipal($this->principal((string) $key))
+            )->forSchema((int) $version);
 
             // Raw: a label is data, and the console would read `<comment>` in it as a style.
             $this->output->writeln($diagrams->render($diagram, (string) $this->option('format')), OutputInterface::OUTPUT_RAW);

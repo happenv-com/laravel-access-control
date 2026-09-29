@@ -10,11 +10,12 @@ use Happenv\LaravelAccessControl\Diagram\DiagramNode;
 use Happenv\LaravelAccessControl\Diagram\EdgeKind;
 use Happenv\LaravelAccessControl\Diagram\NodeKind;
 use Happenv\LaravelAccessControl\Diagram\PermissionDiagram;
+use Happenv\LaravelAccessControl\Diagram\PermissionState;
 
 describe('PermissionDiagram', function (): void {
     it('hands itself over as data, with its schema', function (): void {
         expect(sampleDiagram()->toArray())->toBe([
-            'schema' => ['name' => 'access-control.permission-diagram', 'version' => 1],
+            'schema' => ['name' => 'access-control.permission-diagram', 'version' => 2],
             'kind' => 'principal',
             'clusters' => [
                 ['id' => 'group:products', 'label' => 'Products', 'parent' => null],
@@ -62,6 +63,40 @@ describe('PermissionDiagram', function (): void {
     it('tells the structural edges from the rules', function (): void {
         expect(array_map(fn (EdgeKind $kind): bool => $kind->isStructural(), EdgeKind::cases()))
             ->toBe([true, true, true, false, false, false]);
+    });
+
+    it('refuses a schema version it does not support', function (): void {
+        expect(fn (): PermissionDiagram => new PermissionDiagram(DiagramKind::Catalogue, [], [], [], 3))
+            ->toThrow(InvalidArgumentException::class, 'Unsupported schema version [3]. Supported: 1, 2.')
+            ->and(fn (): PermissionDiagram => sampleDiagram()->forSchema(3))
+            ->toThrow(InvalidArgumentException::class, 'Unsupported schema version [3]. Supported: 1, 2.');
+    });
+
+    it('draws schema version 1 the way 3.0 drew it: an unmet condition as denied', function (): void {
+        $diagram = new PermissionDiagram(
+            DiagramKind::Principal,
+            [],
+            [
+                new DiagramNode('principal', NodeKind::Principal, 'Jan'),
+                new DiagramNode('permission:a', NodeKind::Permission, 'A', state: PermissionState::UnmetCondition),
+                new DiagramNode('permission:b', NodeKind::Permission, 'B', state: PermissionState::Allowed),
+            ],
+            [],
+        );
+
+        $downgraded = $diagram->forSchema(1);
+
+        expect($downgraded->schemaVersion)->toBe(1)
+            ->and($downgraded->node('permission:a')?->state)->toBe(PermissionState::Denied)
+            ->and($downgraded->node('permission:b')?->state)->toBe(PermissionState::Allowed)
+            ->and($downgraded->toArray()['schema']['version'])->toBe(1)
+            ->and($diagram->node('permission:a')?->state)->toBe(PermissionState::UnmetCondition);
+    });
+
+    it('is equal to the original for its own schema version', function (): void {
+        $diagram = sampleDiagram();
+
+        expect($diagram->forSchema(2))->toEqual($diagram);
     });
 });
 

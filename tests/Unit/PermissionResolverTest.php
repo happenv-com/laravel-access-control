@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\Dto\PermissionResolutionDto;
+use Happenv\LaravelAccessControl\Facades\AccessControl;
 use Happenv\LaravelAccessControl\PermissionGraph;
 use Happenv\LaravelAccessControl\PermissionResolver;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Conditions\Flags;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Conditions\RequiresFlag;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Models\InMemoryAccount;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Conditions\ConditionRulePermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ProductPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\BasicRulePermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ChainedConflictPermission;
@@ -18,6 +23,7 @@ use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ImplicationDet
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ImpliedThroughConflictPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ImpliedThroughInactivePermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\NaturalPairPermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ProblemPermission;
 
 describe('PermissionResolver', function (): void {
     it('resolves the worked examples of the spec', function (PermissionDefinition $permission, array $stored, bool $allowed): void {
@@ -186,5 +192,95 @@ describe('PermissionResolver', function (): void {
     it('is one instance per application, over one graph', function (): void {
         expect(resolve(PermissionResolver::class))->toBe(resolve(PermissionResolver::class))
             ->and(resolve(PermissionGraph::class))->toBe(resolve(PermissionGraph::class));
+    });
+});
+
+describe('explainer()', function (): void {
+    beforeEach(function (): void {
+        Flags::reset();
+    });
+
+    it('resolves exactly as explain() does, permission by permission (invariant 9)', function (array $stored): void {
+        $resolver = resolverOver(ProblemPermission::class, BasicRulePermission::class);
+        $explain = $resolver->explainer(storing(...$stored));
+
+        foreach ([...ProblemPermission::cases(), ...BasicRulePermission::cases()] as $permission) {
+            expect($explain($permission))->toEqual($resolver->explain($permission, storing(...$stored)));
+        }
+    })->with([
+        'nothing stored' => [[]],
+        'an implier stored' => [['basic-rule.update']],
+        'a requirement missing' => [['basic-rule.create', 'problem.gated-p']],
+        'conflicts lost' => [['problem.direct-p', 'problem.direct-c', 'problem.chain-p', 'problem.split-p', 'problem.split-x', 'problem.split-y']],
+    ]);
+
+    it('describes a permission implied by a stored one', function (): void {
+        $resolution = resolverOver(BasicRulePermission::class)->explainer(storing('basic-rule.update'))(BasicRulePermission::Manage);
+
+        expect($resolution->stored)->toBeFalse()
+            ->and($resolution->granted)->toBeTrue()
+            ->and($resolution->allowed)->toBeTrue()
+            ->and($resolution->grantedBy)->toBe([BasicRulePermission::Update])
+            ->and($resolution->restricted)->toBeFalse()
+            ->and($resolution->unmetConditions)->toBe([])
+            ->and($resolution->effective)->toBeTrue();
+    });
+
+    it('keeps allowed to the rules and marks a restricted permission as not in effect', function (): void {
+        AccessControl::restrictUsing(fn (PermissionDefinition $permission): bool => $permission === BasicRulePermission::Plain);
+
+        $resolution = resolverOver(BasicRulePermission::class)->explainer(storing('basic-rule.plain'))(BasicRulePermission::Plain);
+
+        expect($resolution->allowed)->toBeTrue()
+            ->and($resolution->restricted)->toBeTrue()
+            ->and($resolution->effective)->toBeFalse();
+    });
+
+    it('names the conditions an account fails, and none without an account', function (): void {
+        $resolver = resolverOver(ConditionRulePermission::class);
+
+        $forAccount = $resolver->explainer(storing('condition-rule.alone'), new InMemoryAccount)(ConditionRulePermission::Alone);
+        $forRole = $resolver->explainer(storing('condition-rule.alone'))(ConditionRulePermission::Alone);
+
+        expect($forAccount->allowed)->toBeTrue()
+            ->and($forAccount->unmetConditions)->toEqual([new RequiresFlag])
+            ->and($forAccount->effective)->toBeFalse()
+            ->and($forRole->unmetConditions)->toBe([])
+            ->and($forRole->effective)->toBeTrue()
+            ->and(Flags::$checks)->toBe(1);
+    });
+
+    it('reads each permission of the stored state at most once', function (): void {
+        $reads = [];
+        $explain = resolverOver(BasicRulePermission::class)->explainer(function (PermissionDefinition $permission) use (&$reads): bool {
+            $reads[] = $permission;
+
+            return $permission === BasicRulePermission::Update;
+        });
+
+        foreach ([...BasicRulePermission::cases(), ...BasicRulePermission::cases()] as $permission) {
+            $explain($permission);
+        }
+
+        expect(count($reads))->toBe(count(array_unique(array_map(fn (PermissionDefinition $permission): string => $permission->value, $reads))));
+    });
+
+    it('answers the state it was built over; a new one sees a change', function (): void {
+        $stored = ['basic-rule.plain'];
+
+        // By reference, so only the explainer's own memo can keep the first answer.
+        $isStored = function (PermissionDefinition $permission) use (&$stored): bool {
+            return in_array($permission->value, $stored, true);
+        };
+
+        $resolver = resolverOver(BasicRulePermission::class);
+        $before = $resolver->explainer($isStored);
+
+        expect($before(BasicRulePermission::Plain)->stored)->toBeTrue();
+
+        $stored = [];
+
+        expect($before(BasicRulePermission::Plain)->stored)->toBeTrue()
+            ->and($resolver->explainer($isStored)(BasicRulePermission::Plain)->stored)->toBeFalse();
     });
 });
