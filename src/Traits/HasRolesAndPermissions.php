@@ -40,8 +40,9 @@ trait HasRolesAndPermissions
             // the REGISTERED permission it names, if any, still do (see HasRoles::hasPermissionTo()).
             $ability = $permission instanceof BackedEnum ? (string) $permission->value : (string) $permission;
 
+            // The roles' grant alone — HasRoles::hasPermissionTo() would ask the conditions a second time.
             $granted = $this->getPermissions()->contains($ability)
-                || $this->hasRolePermissionTo($permission);
+                || $this->roleGrantsAbility($permission);
 
             if (! $granted) {
                 return false;

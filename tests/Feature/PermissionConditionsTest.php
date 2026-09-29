@@ -199,3 +199,24 @@ describe('unmetConditions()', function (): void {
             ->and(AccessControl::unmetConditions(ConditionRulePermission::Alone, new InMemoryRole))->toBe([]);
     });
 });
+
+describe('ability strings through roles', function (): void {
+    it('reads the grants of a role using HasPermissions instead of asking it a string', function (): void {
+        // Asked a string, a HasPermissions role threw a TypeError — it answers only a permission enum.
+        $user = new RoleHoldingUser;
+        $user->heldRoles = [new InMemoryRole(['category.delete'])];
+
+        expect($user->hasPermissionTo('category.delete'))->toBeTrue()
+            ->and($user->hasPermissionTo('category.create'))->toBeFalse();
+    });
+
+    it('asks the conditions of a string granted through a role once', function (): void {
+        $user = new RoleHoldingUser;
+        $user->heldRoles = [new InMemoryGrantRole(['condition-rule.alone'])];
+
+        Flags::raise($user);
+
+        expect($user->hasPermissionTo('condition-rule.alone'))->toBeTrue()
+            ->and(Flags::$checks)->toBe(1);
+    });
+});

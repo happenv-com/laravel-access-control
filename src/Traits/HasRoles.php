@@ -81,9 +81,7 @@ trait HasRoles
         if (! $permission instanceof PermissionDefinition) {
             $key = $permission instanceof BackedEnum ? (string) $permission->value : (string) $permission;
 
-            $granted = $this->resolvedRoleAbilities[$key] ??= $this->resolveRolePermission($permission);
-
-            if (! $granted) {
+            if (! $this->roleGrantsAbility($permission)) {
                 return false;
             }
 
@@ -139,12 +137,35 @@ trait HasRoles
      * cannot be asked an ability string — so such a role is read by its raw grants instead; any other
      * role is asked directly, by duck typing, as the enum path asks it.
      */
+    /**
+     * Whether a role grants an ability string (or a backed enum that is not a permission) — the
+     * grant alone, remembered per instance; the caller applies the conditions.
+     */
+    private function roleGrantsAbility($permission): bool
+    {
+        $key = $permission instanceof BackedEnum ? (string) $permission->value : (string) $permission;
+
+        return $this->resolvedRoleAbilities[$key] ??= $this->resolveRolePermission($permission);
+    }
+
     private function resolveRolePermission($permission): bool
     {
         $key = $permission instanceof BackedEnum ? (string) $permission->value : (string) $permission;
 
         foreach ($this->getRoles() as $role) {
             if ($role instanceof HoldsGrants) {
+                foreach ($role->getGrants() as $grant) {
+                    if ((string) $grant === $key) {
+                        return true;
+                    }
+                }
+
+                continue;
+            }
+
+            // A role using HasPermissions answers only a permission enum — asked a string, it threw a
+            // TypeError. Its stored grants are read instead: a string is neither ruled nor restricted.
+            if (isset(class_uses_recursive($role)[HasPermissions::class]) && method_exists($role, 'getGrants')) {
                 foreach ($role->getGrants() as $grant) {
                     if ((string) $grant === $key) {
                         return true;

@@ -908,7 +908,7 @@ import; a test asserting the condition is enforced catches the rest.
 - `PermissionResolver::explainer($stored, $account)` resolves many permissions over one stored state. Its `PermissionResolutionDto` adds `restricted`, `unmetConditions` and `effective` (allowed, not restricted, every condition met) to what `explain()` returned.
 - `AccessControl::storedGrantsOf($principal)` is what a principal stores (direct and through its roles, as `HasRoles` reads them) and `roleGrantsOf($principal)` its roles' part — put staged changes on top and hand the closure to `explainer()`.
 - `PermissionGraph::problemDetails()` lists the declaration problems as `PermissionProblemDto`s for a UI to word itself.
-- Principal diagrams draw a permission withheld by a condition as `unmet-condition`; the JSON schema is version 2.
+- Principal diagrams draw a permission withheld by a condition as `unmet-condition`; the JSON schema is version 2 by default.
 
 ## How Voters Work
 

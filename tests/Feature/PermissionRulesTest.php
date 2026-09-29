@@ -254,8 +254,7 @@ describe('HasRolesAndPermissions with rules', function (): void {
     });
 
     it('answers an ability string by the direct grants and the roles', function (): void {
-        // This used to throw a TypeError: the direct check only takes a permission enum. The fixture
-        // User holds no roles — a role using HasPermissions cannot answer a string either.
+        // This used to throw a TypeError: the direct check only takes a permission enum.
         $user = new User;
         $user->permissions = ['category.delete'];
 
