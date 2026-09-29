@@ -4,17 +4,22 @@ declare(strict_types=1);
 
 namespace Happenv\LaravelAccessControl\Dto;
 
+use Happenv\LaravelAccessControl\Contracts\PermissionCondition;
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 
 /**
- * Why a permission is or is not effective by the rules between permissions — for a UI, which has to
- * say more than `false`.
+ * Why a permission is or is not in effect — for a UI, which has to say more than `false`.
  *
- * Restrictions are NOT part of it: they are an application condition, and an editor of grants edits
- * grants. `AccessControl::isRestricted()` answers them separately.
+ * `allowed` is the rules between permissions alone. What else withholds a permission is told apart:
+ * a runtime restriction, which withholds it from everyone, and the conditions an account fails.
+ * `effective` sums it up — for a principal using the library's traits, what `hasPermissionTo()`
+ * answers over the same stored grants.
  */
 final readonly class PermissionResolutionDto
 {
+    /** Allowed by the rules, not restricted, and every condition met. */
+    public bool $effective;
+
     public function __construct(
         /** Effective by the rules. */
         public bool $allowed,
@@ -41,5 +46,16 @@ final readonly class PermissionResolutionDto
          * @var list<PermissionDefinition>
          */
         public array $conflicting,
-    ) {}
+        /** A runtime restriction withholds it — from every principal. */
+        public bool $restricted = false,
+        /**
+         * The conditions of it the account fails. Empty when no account was given: a role is never
+         * evaluated against conditions.
+         *
+         * @var list<PermissionCondition>
+         */
+        public array $unmetConditions = [],
+    ) {
+        $this->effective = $allowed && ! $restricted && $unmetConditions === [];
+    }
 }
