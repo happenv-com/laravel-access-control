@@ -20,6 +20,7 @@ class AccessControlServiceProvider extends ServiceProvider
         $this->app->singleton(fn (): PermissionRegistry => new PermissionRegistry);
         $this->app->singleton(fn (): VoterRegistry => new VoterRegistry);
         $this->app->singleton(fn (): PermissionRestrictions => new PermissionRestrictions);
+        $this->app->singleton(fn (): PermissionConditions => new PermissionConditions);
 
         // One graph per process: rules are facts about the code, compiled once and kept.
         $this->app->singleton(fn (): PermissionGraph => new PermissionGraph($this->app->make(PermissionRegistry::class)));
@@ -53,5 +54,6 @@ class AccessControlServiceProvider extends ServiceProvider
         // booted application, and a singleton first resolved during a request leaves with its
         // clone — the graph would be compiled again for each request. Compilation stays lazy.
         resolve(PermissionResolver::class);
+        resolve(PermissionConditions::class);
     }
 }
