@@ -14,6 +14,10 @@ class AccessControlServiceProvider extends ServiceProvider
         $this->app->singleton(fn (): PermissionRegistry => new PermissionRegistry);
         $this->app->singleton(fn (): VoterRegistry => new VoterRegistry);
         $this->app->singleton(fn (): PermissionRestrictions => new PermissionRestrictions);
+
+        // One graph per process: rules are facts about the code, compiled once and kept.
+        $this->app->singleton(fn (): PermissionGraph => new PermissionGraph($this->app->make(PermissionRegistry::class)));
+        $this->app->singleton(fn (): PermissionResolver => new PermissionResolver($this->app->make(PermissionGraph::class)));
     }
 
     public function boot(): void
