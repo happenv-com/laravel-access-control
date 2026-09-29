@@ -155,15 +155,15 @@ final class PermissionGraph
                 if (isset($required[$other->value])) {
                     $problems[] = sprintf(
                         '%s can never be allowed: it requires %s, which it conflicts with.',
-                        self::describe($permission),
-                        self::describe($other),
+                        $this->describe($permission),
+                        $this->describe($other),
                     );
                 } elseif (! isset($this->requirements[$other->value]) && in_array($permission, $this->impliers[$other->value] ?? [], true)) {
                     // Certain only while the implied permission needs nothing: granted, it is active.
                     $problems[] = sprintf(
                         '%s can never be allowed: it implies %s, which it conflicts with.',
-                        self::describe($permission),
-                        self::describe($other),
+                        $this->describe($permission),
+                        $this->describe($other),
                     );
                 }
             }
@@ -173,9 +173,9 @@ final class PermissionGraph
             if (($this->registry->permissions[$rule->other->value] ?? null) !== $rule->other) {
                 $problems[] = sprintf(
                     '%s declares %s about %s, whose enum is not registered.',
-                    self::describe($rule->permission),
+                    $this->describe($rule->permission),
                     $rule->type->name,
-                    self::describe($rule->other),
+                    $this->describe($rule->other),
                 );
             }
         }
@@ -221,7 +221,7 @@ final class PermissionGraph
         if ($rule->other === $rule->permission) {
             throw new InvalidPermissionRuleException(sprintf(
                 '%s declares %s about itself.',
-                self::describe($rule->permission),
+                $this->describe($rule->permission),
                 $rule->type->name,
             ));
         }
@@ -351,7 +351,7 @@ final class PermissionGraph
         return $closure;
     }
 
-    private static function describe(PermissionDefinition $permission): string
+    private function describe(PermissionDefinition $permission): string
     {
         return $permission::class . '::' . $permission->name;
     }
