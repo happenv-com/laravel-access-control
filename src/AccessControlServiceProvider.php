@@ -30,5 +30,10 @@ class AccessControlServiceProvider extends ServiceProvider
         }
 
         resolve(GateConfigurator::class)->configure();
+
+        // Resolved HERE, not at the first check: Octane serves every request from a clone of the
+        // booted application, and a singleton first resolved during a request leaves with its
+        // clone — the graph would be compiled again for each request. Compilation stays lazy.
+        resolve(PermissionResolver::class);
     }
 }

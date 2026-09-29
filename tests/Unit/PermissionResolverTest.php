@@ -8,6 +8,7 @@ use Happenv\LaravelAccessControl\PermissionGraph;
 use Happenv\LaravelAccessControl\PermissionResolver;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ProductPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\BasicRulePermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ChainedConflictPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ConflictingRequirementsPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\CrossRolePermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\GalleryPermission;
@@ -54,6 +55,24 @@ describe('PermissionResolver', function (): void {
         'M4, Update and Delete stored' => [NaturalPairPermission::class, ['m4.update', 'm4.delete'], ['View' => true, 'Update' => true, 'Delete' => true]],
         'M5, all stored' => [ConflictingRequirementsPermission::class, ['m5.p', 'm5.x', 'm5.y'], ['P' => true, 'X' => false, 'Y' => true]],
     ]);
+
+    it('decides a conflict by the activity of the other permission, not by whether it is allowed', function (): void {
+        // C loses its own conflict with D, but it is still ACTIVE — and activity is what P's conflict
+        // reads. Reading `allowed` would let P through.
+        $resolver = resolverOver(ChainedConflictPermission::class);
+        $stored = storing('chained-conflict.p', 'chained-conflict.c', 'chained-conflict.d');
+
+        expect($resolver->allows(ChainedConflictPermission::P, $stored))->toBeFalse()
+            ->and($resolver->allows(ChainedConflictPermission::C, $stored))->toBeFalse()
+            ->and($resolver->allows(ChainedConflictPermission::D, $stored))->toBeTrue();
+    });
+
+    it('is resolved at boot, so a long-running server keeps one graph across requests', function (): void {
+        // Octane serves each request from a clone of the booted application: a singleton first
+        // resolved during a request goes with the clone, and the graph would be compiled again.
+        expect(app()->resolved(PermissionResolver::class))->toBeTrue()
+            ->and(app()->resolved(PermissionGraph::class))->toBeTrue();
+    });
 
     it('answers a permission without rules by asking for it once and nothing else', function (): void {
         $asked = [];
