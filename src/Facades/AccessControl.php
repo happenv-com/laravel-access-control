@@ -7,6 +7,7 @@ namespace Happenv\LaravelAccessControl\Facades;
 use Illuminate\Support\Facades\Facade;
 
 /**
+ * @method static \Happenv\LaravelAccessControl\Diagram\PermissionDiagrams diagram()
  * @method static void restrictUsing(\Closure(\Happenv\LaravelAccessControl\Contracts\PermissionDefinition): bool $restriction)
  * @method static bool isRestricted(\Happenv\LaravelAccessControl\Contracts\PermissionDefinition $permission)
  *

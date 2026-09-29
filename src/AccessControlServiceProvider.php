@@ -2,6 +2,7 @@
 
 namespace Happenv\LaravelAccessControl;
 
+use Happenv\LaravelAccessControl\Commands\PermissionGraphCommand;
 use Happenv\LaravelAccessControl\Diagram\Renderer\DiagramRendererRegistry;
 use Happenv\LaravelAccessControl\Diagram\Renderer\DotRenderer;
 use Happenv\LaravelAccessControl\Diagram\Renderer\JsonRenderer;
@@ -42,6 +43,8 @@ class AccessControlServiceProvider extends ServiceProvider
                 [__DIR__ . '/../config/access-control.php' => config_path('access-control.php')],
                 'access-control-config',
             );
+
+            $this->commands([PermissionGraphCommand::class]);
         }
 
         resolve(GateConfigurator::class)->configure();

@@ -3,6 +3,7 @@
 namespace Happenv\LaravelAccessControl;
 
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
+use Happenv\LaravelAccessControl\Diagram\PermissionDiagrams;
 
 class AccessControl
 {
@@ -42,5 +43,13 @@ class AccessControl
     public function reflectPermission(string $permissionClass): void
     {
         // return $this->permissionRegistry->reflect($permissionClass);
+    }
+
+    /**
+     * Draw the catalogue, or what a principal may do and why — see {@see PermissionDiagrams}.
+     */
+    public function diagram(): PermissionDiagrams
+    {
+        return resolve(PermissionDiagrams::class);
     }
 }
