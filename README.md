@@ -567,10 +567,18 @@ class Role extends Model implements AuthControllable, HoldsGrants
 }
 ```
 
-A role without `HoldsGrants` is asked `hasPermissionTo()` as before.
-- It applies its rules within that role alone, so a requirement stored in another role does not
-  count.
-- Implications and conflicts still work across such roles.
+A role that declares `HoldsGrants` is **no longer asked `hasPermissionTo()`**: its stored grants are
+read as they are. If your role class overrides `hasPermissionTo()` — a super-admin role, a role that
+can be switched off — keep it off `HoldsGrants`, or put that logic into `getGrants()`. Otherwise the
+override stops applying, and a role that is switched off would grant again.
+
+A role without `HoldsGrants` is asked `hasPermissionTo()` as before. It answers whether it may *act*,
+with its own rules and any restriction already applied, and that answer stands in for what it stores:
+- A requirement stored in another role does not count.
+- A related permission that is restricted, or that loses a conflict within that role, counts as
+  absent. A resolution that read a restricted permission this way is never remembered, so it
+  does not outlive the restriction.
+- Implications and conflicts between such roles still work.
 
 `HoldsGrants` also makes checks faster: a principal reads its roles' grants once, instead of scanning
 every role for every permission. Call `forgetResolvedPermissions()` after a principal's roles change
