@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Facade;
 /**
  * @method static void restrictUsing(\Closure(\Happenv\LaravelAccessControl\Contracts\PermissionDefinition): bool $restriction)
  * @method static bool isRestricted(\Happenv\LaravelAccessControl\Contracts\PermissionDefinition $permission)
+ * @method static \Illuminate\Support\Collection<int, \Happenv\LaravelAccessControl\Contracts\PermissionDefinition> effectivePermissions(\Happenv\LaravelAccessControl\Contracts\AuthControllable $principal)
  *
  * @see \Happenv\LaravelAccessControl\AccessControl
  */

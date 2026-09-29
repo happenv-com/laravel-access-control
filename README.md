@@ -256,6 +256,24 @@ $this->authorize(ProductPermission::Update, $product);
 @endcan
 ```
 
+#### Listing what a principal may do
+
+`getEffectivePermissions()` returns every registered permission the principal may act on now, as a
+`Collection` of enum cases in registration order — ready to hand to a front end:
+
+```php
+$user->getEffectivePermissions()->map->value; // ['product.view', 'product.update', ...]
+```
+
+It asks the principal's own `hasPermissionTo()` for each registered permission, so
+[rules between permissions](#7-rules-between-permissions-optional) and
+[runtime restrictions](#6-restricting-permissions-at-runtime-optional) count. Voters do not: they judge
+an action on a particular object, and a list has none to hand them. A permission nobody registered is
+not listed.
+
+`AccessControl::effectivePermissions($principal)` gives the same list for any `AuthControllable`,
+including one that answers `hasPermissionTo()` itself.
+
 ### 5. Adding Permission Metadata (Optional)
 
 Enhance your permissions with names, descriptions, and groups using PHP attributes:

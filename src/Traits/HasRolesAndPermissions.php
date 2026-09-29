@@ -16,6 +16,8 @@ trait HasRolesAndPermissions
 {
     use HasPermissions {
         HasPermissions::hasPermissionTo as hasDirectPermissionTo;
+        // Both traits bring the same list, asked through this class's hasPermissionTo().
+        HasPermissions::getEffectivePermissions insteadof HasRoles;
     }
     use HasRoles {
         HasRoles::hasPermissionTo as hasRolePermissionTo;
