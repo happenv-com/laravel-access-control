@@ -3,9 +3,6 @@
 declare(strict_types=1);
 
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
-use Happenv\LaravelAccessControl\PermissionGraph;
-use Happenv\LaravelAccessControl\PermissionRegistry;
-use Happenv\LaravelAccessControl\PermissionResolver;
 use Happenv\LaravelAccessControl\Diagram\DiagramCluster;
 use Happenv\LaravelAccessControl\Diagram\DiagramEdge;
 use Happenv\LaravelAccessControl\Diagram\DiagramKind;
@@ -14,6 +11,9 @@ use Happenv\LaravelAccessControl\Diagram\EdgeKind;
 use Happenv\LaravelAccessControl\Diagram\NodeKind;
 use Happenv\LaravelAccessControl\Diagram\PermissionDiagram;
 use Happenv\LaravelAccessControl\Diagram\PermissionState;
+use Happenv\LaravelAccessControl\PermissionGraph;
+use Happenv\LaravelAccessControl\PermissionRegistry;
+use Happenv\LaravelAccessControl\PermissionResolver;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ProductPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\GalleryPermission;
 use Happenv\LaravelAccessControl\Tests\TestCase;

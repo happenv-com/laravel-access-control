@@ -74,7 +74,7 @@ final readonly class PrincipalDiagramBuilder
         // there is to draw.
         $isStored = $readable
             ? fn (PermissionDefinition $permission): bool => isset($stored[$permission->value])
-            : fn (PermissionDefinition $permission): bool => $principal->hasPermissionTo($permission);
+            : $principal->hasPermissionTo(...);
 
         foreach ($this->shown($catalogue, $principal, $stored) as $permission) {
             $catalogue->addPermission($draft, $permission, $this->state($principal, $permission, $isStored));

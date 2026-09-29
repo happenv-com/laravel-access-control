@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Happenv\LaravelAccessControl\Diagram\Renderer;
 
+use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\Diagram\DiagramKind;
 use Happenv\LaravelAccessControl\Diagram\DiagramNode;
 use Happenv\LaravelAccessControl\Diagram\EdgeKind;
 use Happenv\LaravelAccessControl\Diagram\NodeKind;
 use Happenv\LaravelAccessControl\Diagram\PermissionDiagram;
+use Happenv\LaravelAccessControl\Diagram\PermissionState;
 
 /**
  * An indented tree for a terminal.
@@ -137,15 +139,15 @@ final class TreeRenderer implements DiagramRenderer
 
     private function permission(DiagramNode $node): string
     {
-        $value = $node->permission === null ? null : (string) $node->permission->value;
+        $value = $node->permission instanceof PermissionDefinition ? (string) $node->permission->value : null;
         $text = $value === null || $value === $node->label ? $node->label : sprintf('%s (%s)', $node->label, $value);
 
-        return $node->state === null ? $text : sprintf('%s [%s]', $text, str_replace('-', ' ', $node->state->value));
+        return $node->state instanceof PermissionState ? sprintf('%s [%s]', $text, str_replace('-', ' ', $node->state->value)) : $text;
     }
 
     private function name(PermissionDiagram $diagram, string $id): string
     {
-        return $diagram->node($id)?->label ?? $id;
+        return $diagram->node($id)->label ?? $id;
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Happenv\LaravelAccessControl\Diagram\Renderer;
 
+use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\Diagram\DiagramEdge;
 use Happenv\LaravelAccessControl\Diagram\DiagramNode;
 use Happenv\LaravelAccessControl\Diagram\EdgeKind;
@@ -50,7 +51,7 @@ final class MermaidRenderer implements DiagramRenderer
         }
 
         foreach ($diagram->clustersIn($cluster) as $child) {
-            $lines[] = sprintf('%ssubgraph %s["%s"]', $indent, $ids->cluster($child->id), self::escape($child->label));
+            $lines[] = sprintf('%ssubgraph %s["%s"]', $indent, $ids->cluster($child->id), $this->escape($child->label));
             array_push($lines, ...$this->body($diagram, $ids, $child->id, $depth + 1));
             $lines[] = $indent . 'end';
         }
@@ -63,19 +64,19 @@ final class MermaidRenderer implements DiagramRenderer
         $id = $ids->node($node->id);
 
         return match ($node->kind) {
-            NodeKind::Principal => sprintf('%s(["%s"])', $id, self::escape($node->label)),
-            NodeKind::Role, NodeKind::Direct => sprintf('%s["%s"]', $id, self::escape($node->label)),
+            NodeKind::Principal => sprintf('%s(["%s"])', $id, $this->escape($node->label)),
+            NodeKind::Role, NodeKind::Direct => sprintf('%s["%s"]', $id, $this->escape($node->label)),
             NodeKind::Permission => sprintf('%s("%s")', $id, $this->permissionLabel($node)),
         };
     }
 
     private function permissionLabel(DiagramNode $node): string
     {
-        $value = $node->permission === null ? null : (string) $node->permission->value;
+        $value = $node->permission instanceof PermissionDefinition ? (string) $node->permission->value : null;
 
         return $value === null || $value === $node->label
-            ? self::escape($node->label)
-            : self::escape($node->label) . '<br/>' . self::escape($value);
+            ? $this->escape($node->label)
+            : $this->escape($node->label) . '<br/>' . $this->escape($value);
     }
 
     private function edge(DiagramEdge $edge, DiagramIdentifiers $ids): string
@@ -91,7 +92,7 @@ final class MermaidRenderer implements DiagramRenderer
 
         return $text === null
             ? sprintf('%s %s %s', $ids->node($edge->from), $arrow, $ids->node($edge->to))
-            : sprintf('%s %s|"%s"| %s', $ids->node($edge->from), $arrow, self::escape($text), $ids->node($edge->to));
+            : sprintf('%s %s|"%s"| %s', $ids->node($edge->from), $arrow, $this->escape($text), $ids->node($edge->to));
     }
 
     /**
@@ -134,7 +135,7 @@ final class MermaidRenderer implements DiagramRenderer
     /**
      * Mermaid's entity codes for what would end a quoted label or read as markup.
      */
-    private static function escape(string $text): string
+    private function escape(string $text): string
     {
         return str_replace(['"', '<', '>', "\r\n", "\n", "\r"], ['#quot;', '#lt;', '#gt;', ' ', ' ', ' '], $text);
     }

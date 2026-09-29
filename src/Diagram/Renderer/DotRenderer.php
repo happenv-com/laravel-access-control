@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Happenv\LaravelAccessControl\Diagram\Renderer;
 
+use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\Diagram\DiagramEdge;
 use Happenv\LaravelAccessControl\Diagram\DiagramNode;
 use Happenv\LaravelAccessControl\Diagram\EdgeKind;
@@ -59,7 +60,7 @@ final class DotRenderer implements DiagramRenderer
 
         foreach ($diagram->clustersIn($cluster) as $child) {
             $lines[] = sprintf('%ssubgraph cluster_%s {', $indent, $ids->cluster($child->id));
-            $lines[] = sprintf('%s    label="%s";', $indent, self::escape($child->label));
+            $lines[] = sprintf('%s    label="%s";', $indent, $this->escape($child->label));
             array_push($lines, ...$this->body($diagram, $ids, $child->id, $depth + 1));
             $lines[] = $indent . '}';
         }
@@ -89,11 +90,11 @@ final class DotRenderer implements DiagramRenderer
 
     private function label(DiagramNode $node): string
     {
-        $value = $node->permission === null ? null : (string) $node->permission->value;
+        $value = $node->permission instanceof PermissionDefinition ? (string) $node->permission->value : null;
 
         return $value === null || $value === $node->label
-            ? self::escape($node->label)
-            : self::escape($node->label) . '\n' . self::escape($value);
+            ? $this->escape($node->label)
+            : $this->escape($node->label) . '\n' . $this->escape($value);
     }
 
     private function edge(DiagramEdge $edge, DiagramIdentifiers $ids): string
@@ -102,7 +103,7 @@ final class DotRenderer implements DiagramRenderer
         $text = EdgeText::of($edge);
 
         if ($text !== null) {
-            $attributes[] = sprintf('label="%s"', self::escape($text));
+            $attributes[] = sprintf('label="%s"', $this->escape($text));
         }
 
         array_push($attributes, ...match ($edge->kind) {
@@ -120,7 +121,7 @@ final class DotRenderer implements DiagramRenderer
     /**
      * A DOT quoted string: backslashes and quotes escaped, line breaks as `\n`.
      */
-    private static function escape(string $text): string
+    private function escape(string $text): string
     {
         return str_replace(['\\', '"', "\r\n", "\n", "\r"], ['\\\\', '\\"', '\\n', '\\n', '\\n'], $text);
     }
