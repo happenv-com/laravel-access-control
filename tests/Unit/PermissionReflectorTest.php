@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
+use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\Exceptions\PermissionGroupRequiredException;
 use Happenv\LaravelAccessControl\PermissionReflector;
+use Happenv\LaravelAccessControl\PermissionRule;
+use Happenv\LaravelAccessControl\PermissionRuleType;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\CaseMutatesDataPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ClassMutatesDataPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ClassSurfacedPermission;
@@ -11,6 +14,8 @@ use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Groups\ProductGroup;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\PartialMutatesDataPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\PermissionWithoutGroup;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ProductPermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ConflictingRequirementsPermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\GalleryPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\StoreSettingPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\SurfacedPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\TestSurface;
@@ -225,4 +230,34 @@ describe('PermissionReflector', function (): void {
         });
     });
 
+});
+
+describe('PermissionReflector::getRules', function (): void {
+    it('reads the rules a case declares, with the reason as written', function (): void {
+        $rules = (new PermissionReflector(GalleryPermission::class))->getRules(GalleryPermission::View);
+
+        expect($rules)->toEqual([
+            new PermissionRule(PermissionRuleType::Requires, GalleryPermission::View, ProductPermission::View, 'rules.needs'),
+        ]);
+    });
+
+    it('reads every instance of a repeated rule', function (): void {
+        $rules = (new PermissionReflector(ConflictingRequirementsPermission::class))
+            ->getRules(ConflictingRequirementsPermission::P);
+
+        expect(array_map(fn (PermissionRule $rule): PermissionDefinition => $rule->other, $rules))
+            ->toBe([ConflictingRequirementsPermission::X, ConflictingRequirementsPermission::Y]);
+    });
+
+    it('reads nothing from a case that declares nothing', function (): void {
+        expect((new PermissionReflector(ConflictingRequirementsPermission::class))->getRules(ConflictingRequirementsPermission::Y))
+            ->toBe([]);
+    });
+
+    it('refuses a case of another enum rather than read its namesake', function (): void {
+        // Both enums have a `View`: reading GalleryPermission's attributes for ProductPermission::View
+        // would report a rule ProductPermission never declared.
+        expect(fn (): array => (new PermissionReflector(GalleryPermission::class))->getRules(ProductPermission::View))
+            ->toThrow(InvalidArgumentException::class);
+    });
 });

@@ -2,6 +2,37 @@
 
 All notable changes to `access-control` will be documented in this file.
 
+## 3.0.0 - Unreleased
+
+### Added
+
+- Rules between permissions, declared on enum cases (#23):
+  - `#[Requires(A)]`: effective only while A is;
+  - `#[ImpliedBy(A)]`: granted along with A;
+  - `#[ConflictsWith(A)]`: not effective while A is.
+
+  Each is repeatable and takes an optional `reason`: a translation key, or on PHP 8.5+ a closure. A rule changes only the permission that declares it.
+- `PermissionGraph`, a singleton that compiles the rules of every registered enum lazily, once per process, and recompiles after a later registration.
+  - A rule about the permission itself, or a cycle of `Requires`, throws `InvalidPermissionRuleException`.
+  - `problems()` lists permissions that can never be allowed and rules pointing at unregistered enums.
+- `PermissionResolver`, a singleton, with `allows($permission, $stored)` and `explain($permission, $stored)`. `explain()` returns a `PermissionResolutionDto` for a UI.
+- `Contracts\HoldsGrants`: a role that hands over its raw grants (`getGrants()`, provided by `HasPermissions`). A principal then resolves rules over the union of its roles and reads their grants once per instance.
+- `PermissionDto::$rules`: every `PermissionRuleDto` a permission declares or is the target of. `PermissionCollection` attaches them with the reason translated.
+- `PermissionReflector::getRules()`.
+
+### Changed
+
+- `hasPermissionTo()` of `HasPermissions`, `HasRoles` and `HasRolesAndPermissions` applies the rules. A permission that declares none is answered as before.
+- `HasRoles` reads the grants of `HoldsGrants` roles once per instance. `forgetResolvedPermissions()` clears them too. Other roles are asked `hasPermissionTo()` as before.
+- `HasRolesAndPermissions` resolves once over the union of direct and role grants, instead of asking each source separately.
+- `PermissionCollection` takes an optional `PermissionGraph` as a second constructor argument.
+
+### Fixed
+
+- `HasRolesAndPermissions::hasPermissionTo()` threw when given an ability string or a backed enum that is not a permission. It now checks the direct grants and the roles by value, as `HasRoles` does.
+
+**Upgrading:** nothing changes until a permission declares a rule. To have rules resolved across roles, and for the faster lookup, add `implements HoldsGrants` to role classes that use `HasPermissions`. A `HoldsGrants` role is no longer asked `hasPermissionTo()`, so a role class that overrides it (a super-admin role, a role that can be switched off) must keep that logic in `getGrants()` or stay off `HoldsGrants`.
+
 ## 2.3.0 - 2026-09-28
 
 ### Added

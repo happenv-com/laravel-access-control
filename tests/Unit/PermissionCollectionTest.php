@@ -6,9 +6,13 @@ use Happenv\LaravelAccessControl\Dto\PermissionDto;
 use Happenv\LaravelAccessControl\Dto\PermissionGroupDto;
 use Happenv\LaravelAccessControl\Dto\PermissionSubjectDto;
 use Happenv\LaravelAccessControl\PermissionCollection;
+use Happenv\LaravelAccessControl\PermissionReflector;
 use Happenv\LaravelAccessControl\PermissionRegistry;
+use Happenv\LaravelAccessControl\PermissionRuleType;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\CategoryPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ProductPermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ClosureReasonPermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\GalleryPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\StoreSettingPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\SurfacedPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\TestSurface;
@@ -183,4 +187,63 @@ describe('PermissionCollection', function (): void {
                 ->toBe(['surfaced.update']);
         });
     });
+});
+
+describe('PermissionCollection rules', function (): void {
+    beforeEach(function (): void {
+        $this->registry->register([ProductPermission::class, GalleryPermission::class]);
+    });
+
+    it('puts every rule on both of its ends', function (): void {
+        $permissions = $this->collection->getPermissions()->keyBy('slug');
+
+        $onGallery = $permissions['gallery.view']->rules;
+
+        expect($onGallery)->toHaveCount(1)
+            ->and($permissions['product.view']->rules)->toBe($onGallery)
+            ->and($onGallery[0]->type)->toBe(PermissionRuleType::Requires)
+            ->and($onGallery[0]->permission)->toBe(GalleryPermission::View)
+            ->and($onGallery[0]->other)->toBe(ProductPermission::View);
+    });
+
+    it('leaves a permission no rule touches without rules', function (): void {
+        expect($this->collection->getPermissions()->firstWhere('slug', 'product.create')->rules)->toBe([]);
+    });
+
+    it('fills :permission and :other into the reason', function (): void {
+        $manage = $this->collection->getPermissions()->firstWhere('slug', 'gallery.manage');
+
+        expect($manage->rules[0]->reason)->toBe('Manage Gallery comes with Update Products');
+    });
+
+    it('reads the reason in the current locale', function (): void {
+        app('translator')->addLines(['rules.needs' => ':permission needs :other'], 'en');
+        app('translator')->addLines(['rules.needs' => ':permission wymaga :other'], 'pl');
+
+        app()->setLocale('pl');
+
+        $view = $this->collection->getPermissions()->firstWhere('slug', 'gallery.view');
+
+        expect($view->rules[0]->reason)->toBe('View Gallery wymaga View Products');
+    });
+
+    it('keeps a rule declared without a reason without one', function (): void {
+        $archive = $this->collection->getPermissions()->firstWhere('slug', 'gallery.archive');
+
+        expect($archive->rules[0]->reason)->toBeNull();
+    });
+
+    it('attaches no rules to a DTO the reflector builds on its own', function (): void {
+        // Only the collection sees every enum, so only it knows both names a reason needs.
+        expect((new PermissionReflector(GalleryPermission::class))->getValues()->first()->rules)->toBe([]);
+    });
+
+    it('calls a closure reason with both names', function (): void {
+        $registry = new PermissionRegistry;
+        $registry->register(ClosureReasonPermission::class);
+
+        $edit = (new PermissionCollection($registry))->getPermissions()->firstWhere('slug', 'closure-reason.edit');
+
+        expect($edit->rules[0]->reason)->toBe('Edit Closure Reason needs View Closure Reason');
+    })->skip(PHP_VERSION_ID < 80500, 'A closure is an attribute argument only from PHP 8.5.');
 });

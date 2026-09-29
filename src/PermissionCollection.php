@@ -4,18 +4,27 @@ declare(strict_types=1);
 
 namespace Happenv\LaravelAccessControl;
 
+use Closure;
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\Contracts\PermissionSurfaceDefinition;
 use Happenv\LaravelAccessControl\Dto\PermissionDto;
 use Happenv\LaravelAccessControl\Dto\PermissionGroupDto;
+use Happenv\LaravelAccessControl\Dto\PermissionRuleDto;
 use Happenv\LaravelAccessControl\Dto\PermissionSubjectDto;
 use Illuminate\Support\Collection;
 
 final readonly class PermissionCollection
 {
+    private PermissionGraph $graph;
+
     public function __construct(
         private PermissionRegistry $registry,
-    ) {}
+        ?PermissionGraph $graph = null,
+    ) {
+        // Optional, so a collection built over a registry of its own keeps working: its graph has to
+        // index THAT registry, which the container's does not.
+        $this->graph = $graph ?? new PermissionGraph($registry);
+    }
 
     /**
      * @return Collection<string,PermissionGroupDto>
@@ -45,6 +54,8 @@ final readonly class PermissionCollection
             // the first, taking its permissions out of the UI with it.
             $grouped[$group->getSlug()]->subjects->put($subject->enum, $subject);
         }
+
+        $this->attachRules($grouped);
 
         return new Collection($grouped);
     }
@@ -85,5 +96,59 @@ final readonly class PermissionCollection
             ->filter(fn (PermissionDto $permission): bool => in_array($surface, $permission->surfaces, true))
             ->map(fn (PermissionDto $permission): string => $permission->slug)
             ->values();
+    }
+
+    /**
+     * Put every rule on BOTH of its ends, its reason read now — in this request's locale, never in
+     * that of whoever compiled the graph.
+     *
+     * @param  array<string, PermissionGroupDto>  $grouped
+     */
+    private function attachRules(array $grouped): void
+    {
+        $permissions = [];
+
+        foreach ($grouped as $group) {
+            foreach ($group->children as $permission) {
+                $permissions[$permission->slug] = $permission;
+            }
+        }
+
+        // One DTO per rule, shared by its two ends and translated once.
+        $dtos = [];
+
+        foreach ($permissions as $permission) {
+            $rules = [];
+
+            foreach ($this->graph->rulesTouching($permission->enum) as $rule) {
+                $rules[] = $dtos[spl_object_id($rule)] ??= new PermissionRuleDto(
+                    type: $rule->type,
+                    permission: $rule->permission,
+                    other: $rule->other,
+                    reason: $this->reason($rule, $permissions),
+                );
+            }
+
+            $permission->rules = $rules;
+        }
+    }
+
+    /**
+     * @param  array<array-key, PermissionDto>  $permissions
+     */
+    private function reason(PermissionRule $rule, array $permissions): ?string
+    {
+        if ($rule->reason === null) {
+            return null;
+        }
+
+        // A rule may point outside the catalogue — at an enum nobody registered — so fall back to
+        // the value, which is what is granted anyway.
+        $permission = $permissions[$rule->permission->value]->name ?? (string) $rule->permission->value;
+        $other = $permissions[$rule->other->value]->name ?? (string) $rule->other->value;
+
+        return $rule->reason instanceof Closure
+            ? ($rule->reason)($permission, $other)
+            : __($rule->reason, ['permission' => $permission, 'other' => $other]);
     }
 }

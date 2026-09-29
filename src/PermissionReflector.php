@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Happenv\LaravelAccessControl;
 
 use Happenv\LaravelAccessControl\Attributes\AvailableFor;
+use Happenv\LaravelAccessControl\Attributes\ConflictsWith;
+use Happenv\LaravelAccessControl\Attributes\ImpliedBy;
 use Happenv\LaravelAccessControl\Attributes\MutatesData;
 use Happenv\LaravelAccessControl\Attributes\PermissionDescription;
 use Happenv\LaravelAccessControl\Attributes\PermissionGroup;
 use Happenv\LaravelAccessControl\Attributes\PermissionName;
+use Happenv\LaravelAccessControl\Attributes\Requires;
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\Contracts\PermissionGroupDefinition;
 use Happenv\LaravelAccessControl\Contracts\PermissionSurfaceDefinition;
@@ -23,6 +26,15 @@ use ReflectionClassConstant;
 
 final readonly class PermissionReflector
 {
+    /**
+     * @var array<class-string<Requires | ImpliedBy | ConflictsWith>, PermissionRuleType>
+     */
+    private const array RULE_ATTRIBUTES = [
+        Requires::class => PermissionRuleType::Requires,
+        ImpliedBy::class => PermissionRuleType::ImpliedBy,
+        ConflictsWith::class => PermissionRuleType::ConflictsWith,
+    ];
+
     public function __construct(
         private string $permission,
     ) {}
@@ -127,14 +139,7 @@ final readonly class PermissionReflector
      */
     public function mutatesData(PermissionDefinition $permission): bool
     {
-        if (! $permission instanceof $this->permission) {
-            throw new InvalidArgumentException(sprintf(
-                'Permission %s::%s does not belong to %s.',
-                $permission::class,
-                $permission->name,
-                $this->permission,
-            ));
-        }
+        $this->assertOwnCase($permission);
 
         return $this->getConstantAttribute($permission->name, MutatesData::class)->mutates
             ?? $this->getClassAttribute(MutatesData::class)->mutates
@@ -161,6 +166,55 @@ final readonly class PermissionReflector
         }
 
         return true;
+    }
+
+    /**
+     * The rules the case DECLARES — never the ones other cases declare about it; only
+     * {@see PermissionGraph} sees every enum. Grouped by kind, each in declaration order, with the
+     * reason as written.
+     *
+     * A case of another enum is refused, for the reason {@see self::mutatesData()} refuses one.
+     *
+     * @return list<PermissionRule>
+     *
+     * @throws InvalidArgumentException when the case does not belong to this reflector's enum
+     */
+    public function getRules(PermissionDefinition $permission): array
+    {
+        $this->assertOwnCase($permission);
+
+        $constant = new ReflectionClassConstant($this->permission, $permission->name);
+        $rules = [];
+
+        foreach (self::RULE_ATTRIBUTES as $attribute => $type) {
+            foreach ($constant->getAttributes($attribute) as $declaration) {
+                /** @var Requires | ImpliedBy | ConflictsWith $instance */
+                $instance = $declaration->newInstance();
+
+                $rules[] = new PermissionRule($type, $permission, $instance->permission, $instance->reason);
+            }
+        }
+
+        return $rules;
+    }
+
+    /**
+     * Refuse a case of another enum: attributes are looked up by the case's NAME on this reflector's
+     * enum, and permission enums share case names (`View`, `Update`) — reading a stranger's case
+     * would answer confidently for its namesake.
+     *
+     * @throws InvalidArgumentException when the case does not belong to this reflector's enum
+     */
+    private function assertOwnCase(PermissionDefinition $permission): void
+    {
+        if (! $permission instanceof $this->permission) {
+            throw new InvalidArgumentException(sprintf(
+                'Permission %s::%s does not belong to %s.',
+                $permission::class,
+                $permission->name,
+                $this->permission,
+            ));
+        }
     }
 
     private function getDescription(string $enumCase): ?string

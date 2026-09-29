@@ -48,6 +48,7 @@ This library allows achieving such behavior without tightly coupling the two mod
 - 🗳️ **Voter system** - Replace Laravel Policies with flexible voters that can be registered from any module
 - 📦 **Modular architecture** - Each module can register its own voters without modifying core logic
 - 🏷️ **Permission metadata** - Add names, descriptions, and groups to permissions via PHP attributes
+- 🔗 **Rules between permissions** - Declare that a permission requires, comes with or conflicts with another — enforced in every check
 - ⚡ **Laravel Gate integration** - Works seamlessly with Laravel's authorization system
 
 ## When to Use This Package
@@ -473,10 +474,192 @@ A few things to keep in mind:
   pre-fills its checkboxes from `hasPermissionTo()` shows the restricted grants unchecked, and saving
   the form during a restriction revokes them. Read the stored grants (`getPermissions()`) wherever
   you edit or display what was granted.
+  Rules widen the gap: a permission can be effective without being stored (implied) and stored without being effective (a requirement missing).
+
+### 7. Rules Between Permissions (Optional)
+
+A permission can declare how it relates to another permission. The package applies these rules
+itself — in `hasPermissionTo()`, and therefore in the Gate — and describes them to a
+permission-management UI.
+
+| Attribute on X | Meaning |
+|---|---|
+| `#[Requires(A)]` | X is effective only while A is effective. |
+| `#[ImpliedBy(A)]` | Whoever is granted A is granted X as well. |
+| `#[ConflictsWith(A)]` | X is not effective while A is effective. |
+
+```php
+use Happenv\LaravelAccessControl\Attributes\ConflictsWith;
+use Happenv\LaravelAccessControl\Attributes\ImpliedBy;
+use Happenv\LaravelAccessControl\Attributes\PermissionGroup;
+use Happenv\LaravelAccessControl\Attributes\Requires;
+
+#[PermissionGroup(GalleryGroup::class)]
+enum GalleryPermission: string implements PermissionDefinition
+{
+    #[Requires(ProductPermission::View)]
+    case View = 'gallery.view';
+
+    #[ImpliedBy(ProductPermission::Update, reason: 'permissions.rules.follows')]
+    case Manage = 'gallery.manage';
+}
+
+#[PermissionGroup(OrderGroup::class)]
+enum OrderPermission: string implements PermissionDefinition
+{
+    #[ConflictsWith(self::ViewAny)]
+    case ViewOwn = 'order.view-own';
+
+    case ViewAny = 'order.view-any';
+}
+```
+
+Each attribute is repeatable. Several `Requires` on one case mean all of them are needed.
+
+**A rule changes only the permission that declares it.**
+- `Requires` and `ConflictsWith` narrow it, and `ImpliedBy` widens it. Nothing a module declares
+  changes the answer for another module's permission.
+- Declare a rule in the module that knows the other one. That is why both directions of an
+  implication exist: `Requires` points at what X needs, and `ImpliedBy` at what brings X along.
+- A permission that declares no rule is answered exactly as before.
+
+How a permission is resolved for a principal:
+
+```mermaid
+flowchart LR
+    stored -->|ImpliedBy| granted
+    granted -->|Requires| active
+    active -->|ConflictsWith| allowed
+    allowed -->|restrictions| check["hasPermissionTo()"]
+```
+
+- **stored**: in the principal's grants, directly or through any role.
+- **granted**: stored, or stored by anything that implies it, transitively. A cycle of implications
+  means that its permissions come together.
+- **active**: granted, and every permission it requires is active.
+- **allowed**: active, and no permission it conflicts with is active.
+
+Worth knowing:
+
+- **Nothing is written.**
+  - `givePermissionTo(ProductPermission::Update)` stores `product.update` alone. An implied permission
+    is never stored, so revoking `Update` takes what it implied with it.
+  - Revoking a permission that something still implies changes nothing.
+- **An implication follows the grant.** X implied by A is granted whenever A is granted, even if A
+  itself is inactive because a requirement is missing. That is what lets `Update #[Requires(View)]`
+  next to `View #[ImpliedBy(Update)]` work.
+- **Only the declaring side of a conflict loses.** With both `ViewOwn` and `ViewAny`, `ViewOwn` is
+  denied and `ViewAny` keeps working. Declare the conflict on both cases to deny both.
+- **Restrictions come last.** A restriction on `Update` withholds `Update`, not what `Update` implies.
+- **The voters of the permission being checked run.** `Gate::allows(GalleryPermission::Manage)` runs
+  the voters of `Manage`, never those of the permission that implies it.
+- **`hasPermissionTo()` with an ability string is not ruled.** Like restrictions, rules are keyed by
+  permission enum, so `$user->hasPermissionTo('gallery.manage')` is answered without them. The Gate
+  is different: `Gate::allows('gallery.manage')` reaches the ability defined for the
+  enum case, and is ruled.
+- **A model with its own `hasPermissionTo()` bypasses the rules**, as it bypasses restrictions. It
+  can ask `resolve(PermissionResolver::class)->allows($permission, $isStored)` itself.
+
+#### Rules across roles: `HoldsGrants`
+
+Rules are resolved over the union of a principal's grants. A requirement one role stores satisfies a
+permission another role stores, and a conflict between two roles is seen. For that, a role has to
+hand over its raw grants: declare `HoldsGrants` on it. `HasPermissions` already provides the method.
+
+```php
+use Happenv\LaravelAccessControl\Contracts\HoldsGrants;
+
+class Role extends Model implements AuthControllable, HoldsGrants
+{
+    use HasPermissions;
+
+    // ...
+}
+```
+
+A role that declares `HoldsGrants` is **no longer asked `hasPermissionTo()`**: its stored grants are
+read as they are. If your role class overrides `hasPermissionTo()` — a super-admin role, a role that
+can be switched off — keep it off `HoldsGrants`, or put that logic into `getGrants()`. Otherwise the
+override stops applying, and a role that is switched off would grant again.
+
+A role without `HoldsGrants` is asked `hasPermissionTo()` as before. It answers whether it may *act*,
+with its own rules and any restriction already applied, and that answer stands in for what it stores:
+- A requirement stored in another role does not count.
+- A related permission that is restricted, or that loses a conflict within that role, counts as
+  absent. A resolution that read a restricted permission this way is never remembered, so it
+  does not outlive the restriction.
+- Implications and conflicts between such roles still work.
+
+`HoldsGrants` also makes checks faster: a principal reads its roles' grants once, instead of scanning
+every role for every permission. Call `forgetResolvedPermissions()` after a principal's roles, or the
+grants of one of its roles, change within the same request.
+
+#### Checking your declarations
+
+Two mistakes throw `InvalidPermissionRuleException` at the first permission check:
+- a rule about the permission itself;
+- a cycle of `Requires`.
+
+Declarations that compile but cannot mean what they say are listed by `PermissionGraph::problems()`.
+Assert it in a test:
+
+```php
+use Happenv\LaravelAccessControl\PermissionGraph;
+
+it('declares sound permission rules', function (): void {
+    expect(resolve(PermissionGraph::class)->problems())->toBe([]);
+});
+```
+
+`problems()` reports:
+- a permission that can never be allowed, because it conflicts with something it requires or implies;
+- a rule pointing at a permission whose enum is not registered.
+
+It never reports a permission that can be allowed.
+
+#### Rules in a permission-management UI
+
+Every `PermissionDto` from `PermissionCollection` carries `rules`: each rule it declares **or** is the
+target of. The same `PermissionRuleDto` sits on both ends.
+
+```php
+foreach ($permission->rules as $rule) {
+    $rule->type;        // PermissionRuleType::Requires, ImpliedBy or ConflictsWith
+    $rule->permission;  // the permission that declares it
+    $rule->other;       // the permission it points at
+    $rule->reason;      // translated, or null
+}
+```
+
+A `reason` is a translation key or plain text. It is passed through `__()` with `:permission` and
+`:other` (the two names), in the locale of the request that reads it. On PHP 8.5+, where an attribute
+argument may be a static closure, it can also be a `Closure(string $permission, string $other): string`.
+
+To show why a permission is or is not effective, ask the resolver with a closure that says what is
+stored. The closure can describe the unsaved state of a form:
+
+```php
+use Happenv\LaravelAccessControl\PermissionResolver;
+
+$resolution = resolve(PermissionResolver::class)->explain(
+    GalleryPermission::Manage,
+    fn (PermissionDefinition $permission): bool => in_array($permission->value, $checked, true),
+);
+
+$resolution->allowed;     // effective by the rules (restrictions are not included)
+$resolution->stored;      // ticked
+$resolution->granted;     // ticked, or implied
+$resolution->grantedBy;   // the permissions that imply it and are granted
+$resolution->missing;     // its requirements that are not active
+$resolution->conflicting; // the permissions it conflicts with that are active
+```
+
+A role editor should still read and save the **stored** grants. See the note on grant containers in
+the previous section.
 
 ## How Voters Work
 
-1. When a permission check is performed via Laravel's Gate, the package first refuses a permission withheld by a [runtime restriction](#6-restricting-permissions-at-runtime-optional), then verifies if the user has the permission (via `$user->hasPermissionTo()`)
+1. When a permission check is performed via Laravel's Gate, the package first refuses a permission withheld by a [runtime restriction](#6-restricting-permissions-at-runtime-optional), then verifies if the user has the permission (via `$user->hasPermissionTo()`, which applies the [rules between permissions](#7-rules-between-permissions-optional))
 2. If the user has the permission, all registered voters for that permission are executed
 3. **If any voter returns `Response::deny()`, the authorization fails**
 4. Only if all voters return `Response::allow()`, the authorization succeeds
@@ -538,9 +721,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Happenv\LaravelAccessControl\Contracts\AuthControllable;
+use Happenv\LaravelAccessControl\Contracts\HoldsGrants;
 use Happenv\LaravelAccessControl\Traits\HasPermissions;
 
-class Role extends Model implements AuthControllable
+class Role extends Model implements AuthControllable, HoldsGrants
 {
     use HasPermissions;
 
@@ -560,6 +744,8 @@ class Role extends Model implements AuthControllable
     }
 }
 ```
+
+Declaring `HoldsGrants` lets a principal resolve [rules between permissions](#rules-across-roles-holdsgrants) across all of its roles.
 
 > You can also use this trait directly on User.
 
