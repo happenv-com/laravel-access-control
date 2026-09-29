@@ -2,6 +2,11 @@
 
 namespace Happenv\LaravelAccessControl;
 
+use Happenv\LaravelAccessControl\Diagram\Renderer\DiagramRendererRegistry;
+use Happenv\LaravelAccessControl\Diagram\Renderer\DotRenderer;
+use Happenv\LaravelAccessControl\Diagram\Renderer\JsonRenderer;
+use Happenv\LaravelAccessControl\Diagram\Renderer\MermaidRenderer;
+use Happenv\LaravelAccessControl\Diagram\Renderer\TreeRenderer;
 use Illuminate\Support\ServiceProvider;
 
 class AccessControlServiceProvider extends ServiceProvider
@@ -18,6 +23,16 @@ class AccessControlServiceProvider extends ServiceProvider
         // One graph per process: rules are facts about the code, compiled once and kept.
         $this->app->singleton(fn (): PermissionGraph => new PermissionGraph($this->app->make(PermissionRegistry::class)));
         $this->app->singleton(fn (): PermissionResolver => new PermissionResolver($this->app->make(PermissionGraph::class)));
+
+        // Tagged, so an application can add a format or replace one: a later renderer of the same
+        // format wins. Bound, not shared, so a tag added after the first use still counts.
+        $this->app->tag([
+            TreeRenderer::class,
+            MermaidRenderer::class,
+            DotRenderer::class,
+            JsonRenderer::class,
+        ], DiagramRendererRegistry::TAG);
+        $this->app->bind(fn (): DiagramRendererRegistry => new DiagramRendererRegistry($this->app->tagged(DiagramRendererRegistry::TAG)));
     }
 
     public function boot(): void
