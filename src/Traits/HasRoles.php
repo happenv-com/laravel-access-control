@@ -10,6 +10,7 @@ use Happenv\LaravelAccessControl\Contracts\AuthControllable;
 use Happenv\LaravelAccessControl\Contracts\HoldsGrants;
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\PermissionConditions;
+use Happenv\LaravelAccessControl\PermissionRegistry;
 use Happenv\LaravelAccessControl\PermissionResolver;
 use Happenv\LaravelAccessControl\PermissionRestrictions;
 use Illuminate\Support\Collection;
@@ -67,7 +68,10 @@ trait HasRoles
      * role answers `hasPermissionTo()` with its own rules applied.
      *
      * Only a permission ENUM is restricted or ruled: both are keyed by {@see PermissionDefinition},
-     * and an ability string has no definition to hand them. It is answered by the roles alone.
+     * and an ability string has no definition to hand them. It is answered by the roles alone —
+     * except for the conditions of the REGISTERED permission it names, if any: the string is still a
+     * name for that permission, and a condition on it should not be skippable by asking for it by
+     * string instead of by enum.
      *
      * An account — a principal that is `Authenticatable` — must also meet the permission's
      * conditions ({@see PermissionConditions}), asked last and never remembered.
@@ -77,7 +81,16 @@ trait HasRoles
         if (! $permission instanceof PermissionDefinition) {
             $key = $permission instanceof BackedEnum ? (string) $permission->value : (string) $permission;
 
-            return $this->resolvedRoleAbilities[$key] ??= $this->resolveRolePermission($permission);
+            $granted = $this->resolvedRoleAbilities[$key] ??= $this->resolveRolePermission($permission);
+
+            if (! $granted) {
+                return false;
+            }
+
+            $definition = $this->registeredPermission($key);
+
+            // Asked after the memo and never stored in it, like the enum's condition below.
+            return $definition === null || resolve(PermissionConditions::class)->metBy($definition, $this);
         }
 
         if (resolve(PermissionRestrictions::class)->isRestricted($permission)) {
@@ -88,6 +101,14 @@ trait HasRoles
         // switched on — can change within the life of this instance.
         return $this->allowedByRoles($permission)
             && resolve(PermissionConditions::class)->metBy($permission, $this);
+    }
+
+    /**
+     * The registered permission the ability string or non-definition backed enum names, if any.
+     */
+    private function registeredPermission(string $key): ?PermissionDefinition
+    {
+        return resolve(PermissionRegistry::class)->permissions[$key] ?? null;
     }
 
     /**
@@ -113,9 +134,26 @@ trait HasRoles
         return $allowed;
     }
 
+    /**
+     * A {@see HoldsGrants} role's `hasPermissionTo()` is typed to a {@see PermissionDefinition} — it
+     * cannot be asked an ability string — so such a role is read by its raw grants instead; any other
+     * role is asked directly, by duck typing, as the enum path asks it.
+     */
     private function resolveRolePermission($permission): bool
     {
+        $key = $permission instanceof BackedEnum ? (string) $permission->value : (string) $permission;
+
         foreach ($this->getRoles() as $role) {
+            if ($role instanceof HoldsGrants) {
+                foreach ($role->getGrants() as $grant) {
+                    if ((string) $grant === $key) {
+                        return true;
+                    }
+                }
+
+                continue;
+            }
+
             if ($role->hasPermissionTo($permission)) {
                 return true;
             }

@@ -36,11 +36,20 @@ trait HasRolesAndPermissions
     {
         if (! $permission instanceof PermissionDefinition) {
             // An ability string, or a backed enum that is not a permission — read by its value, as
-            // HasRoles reads it. Neither rules nor restrictions apply to one.
+            // HasRoles reads it. Neither rules nor restrictions apply to one — but the conditions of
+            // the REGISTERED permission it names, if any, still do (see HasRoles::hasPermissionTo()).
             $ability = $permission instanceof BackedEnum ? (string) $permission->value : (string) $permission;
 
-            return $this->getPermissions()->contains($ability)
+            $granted = $this->getPermissions()->contains($ability)
                 || $this->hasRolePermissionTo($permission);
+
+            if (! $granted) {
+                return false;
+            }
+
+            $definition = $this->registeredPermission($ability);
+
+            return $definition === null || resolve(PermissionConditions::class)->metBy($definition, $this);
         }
 
         if (resolve(PermissionRestrictions::class)->isRestricted($permission)) {

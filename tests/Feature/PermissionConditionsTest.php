@@ -89,11 +89,22 @@ describe('hasPermissionTo()', function (): void {
         expect($account->hasPermissionTo(ConditionedPermission::Plain))->toBeTrue();
     });
 
-    it('leaves an ability string to the grants alone', function (): void {
-        $user = new User;
-        $user->permissions = ['condition-rule.alone'];
+    it('applies the conditions of the registered permission an ability string names', function (object $account): void {
+        expect($account->hasPermissionTo('condition-rule.alone'))->toBeFalse();
 
-        expect($user->hasPermissionTo('condition-rule.alone'))->toBeTrue()
+        Flags::raise($account);
+
+        expect($account->hasPermissionTo('condition-rule.alone'))->toBeTrue();
+    })->with([
+        'a user (HasRolesAndPermissions)' => fn (): User => tap(new User, fn (User $user) => $user->permissions = ['condition-rule.alone']),
+        'an account holding roles (HasRoles)' => fn (): RoleHoldingAccount => new RoleHoldingAccount([new InMemoryGrantRole(['condition-rule.alone'])]),
+    ]);
+
+    it('leaves an ability string naming no registered permission to the grants alone', function (): void {
+        $user = new User;
+        $user->permissions = ['nobody.registered.this'];
+
+        expect($user->hasPermissionTo('nobody.registered.this'))->toBeTrue()
             ->and(Flags::$checks)->toBe(0);
     });
 
