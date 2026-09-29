@@ -525,8 +525,12 @@ Each attribute is repeatable. Several `Requires` on one case mean all of them ar
 
 How a permission is resolved for a principal:
 
-```
-stored ──ImpliedBy──▶ granted ──Requires──▶ active ──ConflictsWith──▶ allowed ──restrictions──▶ hasPermissionTo
+```mermaid
+flowchart LR
+    stored -->|ImpliedBy| granted
+    granted -->|Requires| active
+    active -->|ConflictsWith| allowed
+    allowed -->|restrictions| check["hasPermissionTo()"]
 ```
 
 - **stored**: in the principal's grants, directly or through any role.
