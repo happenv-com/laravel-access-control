@@ -2,7 +2,14 @@
 
 All notable changes to `access-control` will be documented in this file.
 
-## 3.1.0 - Unreleased
+## 3.1.1 - Unreleased
+
+### Fixed
+
+- `hasPermissionTo()` with an ability string threw a `TypeError` when a role of the principal used `HasPermissions` without `HoldsGrants`: such a role answers only a permission enum. Its stored grants are read instead.
+- `HasRolesAndPermissions::hasPermissionTo()` with an ability string granted through a role checked the permission's conditions twice.
+
+## 3.1.0 - 2026-09-29
 
 ### Added
 
