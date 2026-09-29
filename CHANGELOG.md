@@ -2,6 +2,25 @@
 
 All notable changes to `access-control` will be documented in this file.
 
+## 3.1.0 - Unreleased
+
+### Added
+
+- Conditions on accounts: an attribute implementing `Contracts\PermissionCondition` (`check($permission, $account): bool`), on a permission enum or case, withholds the permission from an `Authenticatable` principal that does not meet it — at the gate, in `hasPermissionTo()` of the traits and in `effectivePermissions()`. Roles and other principals that do not sign in are never evaluated. `Contracts\DescribesPermissionCondition` names a condition for UIs.
+- `PermissionConditions`, a singleton that finds conditions by interface and keeps the attribute instances per process; `AccessControl::unmetConditions($permission, $principal)`.
+- `PermissionResolver::explainer($stored, ?$account)`: one resolution answering many permissions. `PermissionResolutionDto` gains `restricted`, `unmetConditions` and `effective`.
+- `AccessControl::storedGrantsOf($principal)` and `roleGrantsOf($principal)`: what a principal stores, for a UI to put staged changes on.
+- `PermissionDto::$conditions`; `PermissionGraph::problemDetails()` with `PermissionProblemDto` and `PermissionProblemType`.
+- Principal diagrams: the node state `unmet-condition`.
+
+### Changed
+
+- `effectivePermissions()` leaves out restricted permissions for every principal — before, a principal answering `hasPermissionTo()` itself could list a restricted one the gate refused.
+- The diagram JSON schema is version 2 (a new state value); `permission:graph --schema-version` defaults to 2.
+- `explain()` fills the new `restricted` field.
+
+**Upgrading:** nothing changes until a permission carries a condition. A consumer of the diagram JSON that checks the schema version must accept 2.
+
 ## 3.0.0 - Unreleased
 
 ### Added

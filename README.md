@@ -676,6 +676,10 @@ $resolution->conflicting; // the permissions it conflicts with that are active
 A role editor should still read and save the **stored** grants. See the note on grant containers in
 the previous section.
 
+For many permissions over one stored state, and for an account's conditions, see
+`PermissionResolver::explainer()`; for the catalogue's own declaration problems, see
+`PermissionGraph::problemDetails()` — both in [Conditions on Accounts](#9-conditions-on-accounts-optional).
+
 ### 8. Drawing Permission Graphs (Optional)
 
 Draw the rules of the whole catalogue, or what one principal may do and why.
@@ -725,6 +729,7 @@ its state:
 | `implied` | effective without being stored — something the principal holds implies it |
 | `overridden` | effective because the principal's own `hasPermissionTo()` says so, though nothing stores or implies it — an administrator short-circuit |
 | `restricted` | the rules allow it; a runtime restriction withholds it |
+| `unmet-condition` | the rules allow it, the account fails a condition |
 | `missing-requirement` | granted (stored or implied), but a permission it requires is not active |
 | `conflict` | it loses a conflict it declares |
 | `denied` | the principal's own `hasPermissionTo()` refuses it for another reason |
@@ -761,7 +766,7 @@ Render the Mermaid text with [mermaid.js](https://mermaid.js.org) on a page:
 ```
 
 `toArray()` returns:
-- `schema` (`access-control.permission-diagram`, version 1);
+- `schema` (`access-control.permission-diagram`, version 2);
 - `kind`;
 - `clusters` (`id`, `label`, `parent`);
 - `nodes` (`id`, `kind`, `label`, `permission`, `state`, `cluster`);
@@ -799,6 +804,96 @@ $this->app->tag([PlantUmlRenderer::class], DiagramRendererRegistry::TAG);
 ```
 
 It is then available to `render()` and to `permission:graph --format=`.
+
+### 9. Conditions on Accounts (Optional)
+
+A condition withholds a permission from an **account** that does not meet it — one without
+multi-factor authentication, one whose e-mail is not verified — whatever it was granted. It is an
+attribute on a permission enum (it then guards every case) or on one case, and the attribute class
+implements `Contracts\PermissionCondition`. You write your own; nothing is registered, the library
+finds the attribute by its interface.
+
+```php
+use Attribute;
+use Happenv\LaravelAccessControl\Contracts\DescribesPermissionCondition;
+use Happenv\LaravelAccessControl\Contracts\PermissionCondition;
+use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
+
+#[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_CLASS_CONSTANT | Attribute::IS_REPEATABLE)]
+final readonly class RequiresVerifiedEmail implements PermissionCondition, DescribesPermissionCondition
+{
+    public function check(PermissionDefinition $permission, Authenticatable $principal): bool
+    {
+        return $principal instanceof MustVerifyEmail && $principal->hasVerifiedEmail();
+    }
+
+    public function describe(): string
+    {
+        return __('permissions.conditions.verified_email');
+    }
+}
+```
+
+```php
+#[PermissionGroup(OrderGroup::class)]
+enum OrderPermission: string implements PermissionDefinition
+{
+    case View = 'order.view';
+
+    #[RequiresVerifiedEmail]
+    case Refund = 'order.refund';
+}
+```
+
+`check()` is handed the permission it guards, so one attribute can guard many permissions and still
+tell them apart. A condition on the enum and one on the case add up: the account must meet both.
+`DescribesPermissionCondition` is optional — it names the condition in a permission UI.
+
+#### Who is an account
+
+A condition applies to a principal **if and only if it is `Authenticatable`**:
+
+| Principal | Conditions |
+|---|---|
+| A user (`HasRoles` / `HasRolesAndPermissions`) | ✓ |
+| A machine user, an API key (`HasPermissions`) | ✓ |
+| An account answering `hasPermissionTo()` itself | ✓ at the gate and in `effectivePermissions()`; its own `hasPermissionTo()` answers what it answers |
+| A role (`HasPermissions`, `HoldsGrants`) | ✗ — a role stores grants, it does not sign in |
+| Anything else holding roles that does not sign in (a team) | ✗ |
+| No user at all | the gate refuses it as `Unauthenticated.` first |
+
+#### Where conditions apply
+
+Last — after restrictions and the rules between permissions:
+
+| Place | |
+|---|---|
+| The gate (`can()`, `Gate::allows()`, `authorize()`) | an unmet condition is refused with the same message as a missing permission |
+| `hasPermissionTo()` of the traits | `false`; never remembered in the per-instance memo of `HasRoles` |
+| `effectivePermissions()` / `getEffectivePermissions()` | left out — for every account, also one answering `hasPermissionTo()` itself |
+
+A condition withholds its own permission only. What it implies, what requires it and what it
+conflicts with are resolved as if the account could use it: with `B #[ImpliedBy(A)]` and a condition
+on `A`, an account storing `A` without meeting the condition has `B` but not `A`.
+
+A `Gate::before()` callback that answers first skips the permission's gate — its conditions included.
+
+#### Writing a condition
+
+`check()` **must** be free of side effects and idempotent within a request, and **should** avoid
+I/O: it runs on every check — twice in one gate check, once in the trait and once in the gate — and
+its answer is never cached, since a cache would outlive a change in the account (MFA switched on
+mid-request). An exception thrown by `check()` reaches the caller.
+
+#### Conditions in a permission UI
+
+- `PermissionDto::$conditions` lists a permission's conditions; `AccessControl::unmetConditions($permission, $account)` the ones an account fails.
+- `PermissionResolver::explainer($stored, $account)` resolves many permissions over one stored state. Its `PermissionResolutionDto` adds `restricted`, `unmetConditions` and `effective` (allowed, not restricted, every condition met) to what `explain()` returned.
+- `AccessControl::storedGrantsOf($principal)` is what a principal stores (direct and through its roles, as `HasRoles` reads them) and `roleGrantsOf($principal)` its roles' part — put staged changes on top and hand the closure to `explainer()`.
+- `PermissionGraph::problemDetails()` lists the declaration problems as `PermissionProblemDto`s for a UI to word itself.
+- Principal diagrams draw a permission withheld by a condition as `unmet-condition`; the JSON schema is version 2.
 
 ## How Voters Work
 
