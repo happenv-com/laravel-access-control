@@ -20,6 +20,11 @@ final readonly class PermissionDiagram
     public const int SCHEMA_VERSION = 2;
 
     /**
+     * Every schema version this diagram can produce, oldest first.
+     */
+    public const array SCHEMA_VERSIONS = [1, 2];
+
+    /**
      * @param  list<DiagramCluster>  $clusters
      * @param  list<DiagramNode>  $nodes
      * @param  list<DiagramEdge>  $edges
@@ -29,8 +34,40 @@ final readonly class PermissionDiagram
         public array $clusters,
         public array $nodes,
         public array $edges,
+        public int $schemaVersion = self::SCHEMA_VERSION,
     ) {
         $this->assertDrawable($clusters, $nodes, $edges);
+        $this->assertSupportedSchema($schemaVersion);
+    }
+
+    /**
+     * An equal diagram for an older schema version: version 1 drew a permission withheld by a
+     * condition as `denied`, the same as any other refusal by the principal's own check — the state
+     * `unmet-condition` did not exist yet.
+     *
+     * @throws InvalidArgumentException for a version not in {@see self::SCHEMA_VERSIONS}
+     */
+    public function forSchema(int $version): self
+    {
+        $this->assertSupportedSchema($version);
+
+        if ($version === $this->schemaVersion) {
+            return $this;
+        }
+
+        $nodes = array_map(
+            fn (DiagramNode $node): DiagramNode => new DiagramNode(
+                $node->id,
+                $node->kind,
+                $node->label,
+                $node->permission,
+                $version < 2 && $node->state === PermissionState::UnmetCondition ? PermissionState::Denied : $node->state,
+                $node->cluster,
+            ),
+            $this->nodes,
+        );
+
+        return new self($this->kind, $this->clusters, $nodes, $this->edges, $version);
     }
 
     public function node(string $id): ?DiagramNode
@@ -83,12 +120,26 @@ final readonly class PermissionDiagram
     public function toArray(): array
     {
         return [
-            'schema' => ['name' => self::SCHEMA_NAME, 'version' => self::SCHEMA_VERSION],
+            'schema' => ['name' => self::SCHEMA_NAME, 'version' => $this->schemaVersion],
             'kind' => $this->kind->value,
             'clusters' => array_map(fn (DiagramCluster $cluster): array => $cluster->toArray(), $this->clusters),
             'nodes' => array_map(fn (DiagramNode $node): array => $node->toArray(), $this->nodes),
             'edges' => array_map(fn (DiagramEdge $edge): array => $edge->toArray(), $this->edges),
         ];
+    }
+
+    /**
+     * @throws InvalidArgumentException for a version not in {@see self::SCHEMA_VERSIONS}
+     */
+    private function assertSupportedSchema(int $version): void
+    {
+        if (! in_array($version, self::SCHEMA_VERSIONS, true)) {
+            throw new InvalidArgumentException(sprintf(
+                'Unsupported schema version [%d]. Supported: %s.',
+                $version,
+                implode(', ', self::SCHEMA_VERSIONS),
+            ));
+        }
     }
 
     /**

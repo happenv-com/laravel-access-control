@@ -65,6 +65,15 @@ describe('permission:graph', function (): void {
             ]);
     });
 
+    it('still draws schema version 1, for a minor release that must not break it', function (): void {
+        [$exitCode, $output] = permissionGraph(['principal' => $this->user->id, '--format' => 'json', '--schema-version' => '1']);
+
+        $diagram = json_decode($output, true);
+
+        expect($exitCode)->toBe(0)
+            ->and($diagram['schema']['version'])->toBe(1);
+    });
+
     it('loads the principal from the model it is given', function (): void {
         config(['auth.providers.users.model' => null]);
 
@@ -103,7 +112,7 @@ describe('permission:graph', function (): void {
             ->and($output)->toContain($message);
     })->with([
         'an unknown format' => [['--format' => 'svg'], 'No diagram renderer for format [svg]. Available: tree, mermaid, dot, json.'],
-        'an unsupported schema version' => [['--schema-version' => '1'], 'Unsupported schema version [1]. Supported: 2.'],
+        'an unsupported schema version' => [['--schema-version' => '3'], 'Unsupported schema version [3]. Supported: 1, 2.'],
         'a key nobody has' => [['principal' => '999'], 'No [' . User::class . '] with key [999].'],
         'a class that is not a model' => [['principal' => '1', '--model' => stdClass::class], '[stdClass] is not an Eloquent model.'],
         'a model that is not a principal' => [['principal' => '1', '--model' => PlainUser::class], 'does not implement'],
