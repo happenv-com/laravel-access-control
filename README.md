@@ -766,13 +766,17 @@ Render the Mermaid text with [mermaid.js](https://mermaid.js.org) on a page:
 ```
 
 `toArray()` returns:
-- `schema` (`access-control.permission-diagram`, version 2);
+- `schema` (`access-control.permission-diagram`, version 2 by default);
 - `kind`;
 - `clusters` (`id`, `label`, `parent`);
 - `nodes` (`id`, `kind`, `label`, `permission`, `state`, `cluster`);
 - `edges` (`from`, `to`, `kind`, `label`).
 
 That is enough for cytoscape, d3 or a list of your own.
+
+`permission:graph --schema-version=1` still produces version 1, for a consumer built against it
+before conditions existed: a permission drawn as `unmet-condition` in version 2 is drawn as `denied`
+in version 1, the same as any other refusal the principal's own check does not explain.
 
 #### Naming principals and roles
 
@@ -878,6 +882,12 @@ A condition withholds its own permission only. What it implies, what requires it
 conflicts with are resolved as if the account could use it: with `B #[ImpliedBy(A)]` and a condition
 on `A`, an account storing `A` without meeting the condition has `B` but not `A`.
 
+`hasPermissionTo()` called with an **ability string** (`'order.refund'`) also applies the conditions
+of the registered permission that string names. [Restrictions](#6-restricting-permissions-at-runtime-optional)
+and the [rules between permissions](#7-rules-between-permissions-optional) still do not apply to a
+string, as those sections say. A string naming no registered permission is answered by the grants
+alone, as always.
+
 A `Gate::before()` callback that answers first skips the permission's gate — its conditions included.
 
 #### Writing a condition
@@ -886,6 +896,11 @@ A `Gate::before()` callback that answers first skips the permission's gate — i
 I/O: it runs on every check — twice in one gate check, once in the trait and once in the gate — and
 its answer is never cached, since a cache would outlive a change in the account (MFA switched on
 mid-request). An exception thrown by `check()` reaches the caller.
+
+The attribute class must be `use`d in the file that declares the permission enum. PHP silently skips
+an attribute whose class does not exist or is not imported — the condition is dropped with no error
+or exception, and the permission is simply granted. Static analysis (PHPStan) catches the missing
+import; a test asserting the condition is enforced catches the rest.
 
 #### Conditions in a permission UI
 
@@ -897,7 +912,7 @@ mid-request). An exception thrown by `check()` reaches the caller.
 
 ## How Voters Work
 
-1. When a permission check is performed via Laravel's Gate, the package first refuses a permission withheld by a [runtime restriction](#6-restricting-permissions-at-runtime-optional), then verifies if the user has the permission (via `$user->hasPermissionTo()`, which applies the [rules between permissions](#7-rules-between-permissions-optional))
+1. When a permission check is performed via Laravel's Gate, the package first refuses a permission withheld by a [runtime restriction](#6-restricting-permissions-at-runtime-optional), then verifies if the user has the permission (via `$user->hasPermissionTo()`, which applies the [rules between permissions](#7-rules-between-permissions-optional) and, last, an account's [conditions](#9-conditions-on-accounts-optional)) — conditions run after `hasPermissionTo()`'s own rules and before any voter is asked
 2. If the user has the permission, all registered voters for that permission are executed
 3. **If any voter returns `Response::deny()`, the authorization fails**
 4. Only if all voters return `Response::allow()`, the authorization succeeds
