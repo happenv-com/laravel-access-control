@@ -13,6 +13,7 @@ use Happenv\LaravelAccessControl\Tests\Fixtures\Models\RoleHolder;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Models\User;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\BasicRulePermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\CrossRolePermission;
+use Happenv\LaravelAccessControl\Traits\HasRoles;
 use Happenv\LaravelAccessControl\VoterRegistry;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Contracts\Auth\Authenticatable;
@@ -137,6 +138,81 @@ describe('HasRoles with rules', function (): void {
         $holder->forgetResolvedPermissions();
 
         expect($holder->hasPermissionTo(CrossRolePermission::Create))->toBeTrue();
+    });
+
+    it('keeps restrictions out of the rules across HoldsGrants roles', function (): void {
+        AccessControl::restrictUsing(fn (PermissionDefinition $permission): bool => in_array($permission, [CrossRolePermission::ViewAny, CrossRolePermission::View], true));
+
+        $holder = new RoleHolder([
+            new InMemoryGrantRole(['cross-role.view-own', 'cross-role.create', 'cross-role.view']),
+            new InMemoryGrantRole(['cross-role.view-any']),
+        ]);
+
+        // Withheld, ViewAny is still granted and active, so ViewOwn still loses to it; withheld, View
+        // still satisfies Create. A restriction changes the permission asked about, nothing else.
+        expect($holder->hasPermissionTo(CrossRolePermission::ViewOwn))->toBeFalse()
+            ->and($holder->hasPermissionTo(CrossRolePermission::Create))->toBeTrue();
+    });
+
+    it('never remembers a conflict a restriction decided through a role without HoldsGrants', function (): void {
+        $restricted = true;
+
+        AccessControl::restrictUsing(function (PermissionDefinition $permission) use (&$restricted): bool {
+            return $restricted && $permission === CrossRolePermission::ViewAny;
+        });
+
+        $holder = new RoleHolder([new InMemoryRole(['cross-role.view-own']), new InMemoryRole(['cross-role.view-any'])]);
+
+        // Such a role answers "may act", so while ViewAny is withheld it reads as absent here.
+        $holder->hasPermissionTo(CrossRolePermission::ViewOwn);
+
+        $restricted = false;
+
+        // ViewAny is back, so ViewOwn loses its conflict — whatever was answered while it was withheld.
+        expect($holder->hasPermissionTo(CrossRolePermission::ViewOwn))->toBeFalse();
+    });
+
+    it('never remembers a requirement a restriction hid through a role without HoldsGrants', function (): void {
+        $restricted = true;
+
+        AccessControl::restrictUsing(function (PermissionDefinition $permission) use (&$restricted): bool {
+            return $restricted && $permission === CrossRolePermission::View;
+        });
+
+        $holder = new RoleHolder([new InMemoryRole(['cross-role.create', 'cross-role.view'])]);
+
+        $holder->hasPermissionTo(CrossRolePermission::Create);
+
+        $restricted = false;
+
+        expect($holder->hasPermissionTo(CrossRolePermission::Create))->toBeTrue();
+    });
+
+    it('asks roles without HoldsGrants from the current role list, as it always did', function (): void {
+        $holder = new class implements AuthControllable
+        {
+            use HasRoles;
+
+            /**
+             * @var list<AuthControllable>
+             */
+            public array $roles = [];
+
+            public function getRoles(): iterable
+            {
+                return $this->roles;
+            }
+        };
+
+        $holder->roles = [new InMemoryRole(['cross-role.view'])];
+
+        expect($holder->hasPermissionTo(CrossRolePermission::View))->toBeTrue();
+
+        $holder->roles = [new InMemoryRole(['cross-role.update'])];
+
+        // A permission not asked before sees the roles as they are now — the behaviour of an
+        // application that declares no rules must not change.
+        expect($holder->hasPermissionTo(CrossRolePermission::Update))->toBeTrue();
     });
 
     it('answers an ability string by the roles alone, without rules', function (): void {

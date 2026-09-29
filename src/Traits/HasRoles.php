@@ -44,11 +44,10 @@ trait HasRoles
     private ?array $roleGrants = null;
 
     /**
-     * The roles that cannot hand over their grants.
-     *
-     * @var list<AuthControllable>
+     * Whether the resolution under way used a role's answer that a restriction shaped — see
+     * {@see self::hasRoleGrant()}. Such a resolution is answered, never remembered.
      */
-    private array $rolesWithoutGrants = [];
+    private bool $resolutionReadRestriction = false;
 
     /**
      * Whether the permission is effective by the rules between permissions over the union of the
@@ -79,9 +78,21 @@ trait HasRoles
             return false;
         }
 
-        // Note: ??= does not re-evaluate a cached `false` (only null/unset).
-        return $this->resolvedRolePermissions[(string) $permission->value] ??= resolve(PermissionResolver::class)
-            ->allows($permission, $this->hasRoleGrant(...));
+        $key = (string) $permission->value;
+
+        if (isset($this->resolvedRolePermissions[$key])) {
+            return $this->resolvedRolePermissions[$key];
+        }
+
+        $this->resolutionReadRestriction = false;
+
+        $allowed = resolve(PermissionResolver::class)->allows($permission, $this->hasRoleGrant(...));
+
+        if (! $this->resolutionReadRestriction) {
+            $this->resolvedRolePermissions[$key] = $allowed;
+        }
+
+        return $allowed;
     }
 
     private function resolveRolePermission($permission): bool
@@ -97,49 +108,81 @@ trait HasRoles
 
     /**
      * Whether any role STORES the permission — raw, for the resolver to apply the rules over.
+     *
+     * A role that is not {@see HoldsGrants} can only say whether it may ACT, with its own rules and
+     * any restriction applied, and its answer stands in for what it stores. For a restricted
+     * permission that answer is the restriction's, not the grant's: it is used, and remembered
+     * neither here nor in the answer it helps decide — the restriction may end within the life of
+     * this instance, and a conflict it hid would stay hidden.
      */
     private function hasRoleGrant(PermissionDefinition $permission): bool
     {
         $this->roleGrants ??= $this->loadRoleGrants();
 
-        return $this->roleGrants[$permission->value] ??= $this->askRolesWithoutGrants($permission);
+        if (isset($this->roleGrants[$permission->value])) {
+            return $this->roleGrants[$permission->value];
+        }
+
+        $answer = $this->askRolesWithoutGrants($permission);
+
+        if ($answer === null) {
+            // Only HoldsGrants roles: the set read from them is the whole truth.
+            return $this->roleGrants[$permission->value] = false;
+        }
+
+        if (resolve(PermissionRestrictions::class)->isRestricted($permission)) {
+            $this->resolutionReadRestriction = true;
+
+            return $answer;
+        }
+
+        return $this->roleGrants[$permission->value] = $answer;
     }
 
     /**
      * Read every {@see HoldsGrants} role's grants into one set — once per instance, instead of a
-     * scan of every role per permission — and set the other roles aside to be asked.
+     * scan of every role per permission.
      *
      * @return array<array-key, bool>
      */
     private function loadRoleGrants(): array
     {
         $grants = [];
-        $this->rolesWithoutGrants = [];
 
         foreach ($this->getRoles() as $role) {
-            if (! $role instanceof HoldsGrants) {
-                $this->rolesWithoutGrants[] = $role;
-
-                continue;
-            }
-
-            foreach ($role->getGrants() as $grant) {
-                $grants[$grant] = true;
+            if ($role instanceof HoldsGrants) {
+                foreach ($role->getGrants() as $grant) {
+                    $grants[$grant] = true;
+                }
             }
         }
 
         return $grants;
     }
 
-    private function askRolesWithoutGrants(PermissionDefinition $permission): bool
+    /**
+     * Ask every role that is not {@see HoldsGrants}, from the roles as they are NOW — as every
+     * uncached permission always did, so an application that declares no rules sees no change.
+     *
+     * @return bool|null null when no such role was there to ask
+     */
+    private function askRolesWithoutGrants(PermissionDefinition $permission): ?bool
     {
-        foreach ($this->rolesWithoutGrants as $role) {
+        $asked = false;
+
+        foreach ($this->getRoles() as $role) {
+            if ($role instanceof HoldsGrants) {
+                continue;
+            }
+
             if ($role->hasPermissionTo($permission)) {
                 return true;
             }
+
+            $asked = true;
         }
 
-        return false;
+        return $asked ? false : null;
     }
 
     /**
@@ -151,7 +194,6 @@ trait HasRoles
         $this->resolvedRolePermissions = [];
         $this->resolvedRoleAbilities = [];
         $this->roleGrants = null;
-        $this->rolesWithoutGrants = [];
     }
 
     /**
