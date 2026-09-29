@@ -6,6 +6,7 @@ namespace Happenv\LaravelAccessControl\Traits;
 
 use BackedEnum;
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
+use Happenv\LaravelAccessControl\PermissionConditions;
 use Happenv\LaravelAccessControl\PermissionResolver;
 use Happenv\LaravelAccessControl\PermissionRestrictions;
 
@@ -51,6 +52,6 @@ trait HasRolesAndPermissions
         return resolve(PermissionResolver::class)->allows(
             $permission,
             fn (PermissionDefinition $candidate): bool => $direct->contains($candidate->value) || $this->hasRoleGrant($candidate),
-        );
+        ) && resolve(PermissionConditions::class)->metBy($permission, $this);
     }
 }

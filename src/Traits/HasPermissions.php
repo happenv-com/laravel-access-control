@@ -7,6 +7,7 @@ namespace Happenv\LaravelAccessControl\Traits;
 use Happenv\LaravelAccessControl\AccessControl;
 use Happenv\LaravelAccessControl\Contracts\HoldsGrants;
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
+use Happenv\LaravelAccessControl\PermissionConditions;
 use Happenv\LaravelAccessControl\PermissionResolver;
 use Happenv\LaravelAccessControl\PermissionRestrictions;
 use Illuminate\Auth\Authenticatable;
@@ -38,10 +39,12 @@ trait HasPermissions
         // builds a new collection every time it is called.
         $grants = $this->getPermissions();
 
+        // The conditions last, and only once the rules allow: a condition withholds this permission
+        // alone — never what it implies, what requires it or what it conflicts with.
         return resolve(PermissionResolver::class)->allows(
             $permission,
             fn (PermissionDefinition $candidate): bool => $grants->contains($candidate->value),
-        );
+        ) && resolve(PermissionConditions::class)->metBy($permission, $this);
     }
 
     /**

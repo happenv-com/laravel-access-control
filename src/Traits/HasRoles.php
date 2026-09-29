@@ -9,6 +9,7 @@ use Happenv\LaravelAccessControl\AccessControl;
 use Happenv\LaravelAccessControl\Contracts\AuthControllable;
 use Happenv\LaravelAccessControl\Contracts\HoldsGrants;
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
+use Happenv\LaravelAccessControl\PermissionConditions;
 use Happenv\LaravelAccessControl\PermissionResolver;
 use Happenv\LaravelAccessControl\PermissionRestrictions;
 use Illuminate\Support\Collection;
@@ -67,6 +68,9 @@ trait HasRoles
      *
      * Only a permission ENUM is restricted or ruled: both are keyed by {@see PermissionDefinition},
      * and an ability string has no definition to hand them. It is answered by the roles alone.
+     *
+     * An account — a principal that is `Authenticatable` — must also meet the permission's
+     * conditions ({@see PermissionConditions}), asked last and never remembered.
      */
     public function hasPermissionTo($permission): bool
     {
@@ -80,6 +84,18 @@ trait HasRoles
             return false;
         }
 
+        // Asked after the memo and never stored in it, like the restriction: an account's state — MFA
+        // switched on — can change within the life of this instance.
+        return $this->allowedByRoles($permission)
+            && resolve(PermissionConditions::class)->metBy($permission, $this);
+    }
+
+    /**
+     * Whether the rules allow the permission over the union of the roles' grants — remembered per
+     * instance, unless a restriction shaped the answer (see {@see self::hasRoleGrant()}).
+     */
+    private function allowedByRoles(PermissionDefinition $permission): bool
+    {
         $key = (string) $permission->value;
 
         if (isset($this->resolvedRolePermissions[$key])) {
