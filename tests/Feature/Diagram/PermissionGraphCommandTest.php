@@ -103,7 +103,7 @@ describe('permission:graph', function (): void {
             ->and($output)->toContain($message);
     })->with([
         'an unknown format' => [['--format' => 'svg'], 'No diagram renderer for format [svg]. Available: tree, mermaid, dot, json.'],
-        'an unsupported schema version' => [['--schema-version' => '2'], 'Unsupported schema version [2]. Supported: 1.'],
+        'an unsupported schema version' => [['--schema-version' => '1'], 'Unsupported schema version [1]. Supported: 2.'],
         'a key nobody has' => [['principal' => '999'], 'No [' . User::class . '] with key [999].'],
         'a class that is not a model' => [['principal' => '1', '--model' => stdClass::class], '[stdClass] is not an Eloquent model.'],
         'a model that is not a principal' => [['principal' => '1', '--model' => PlainUser::class], 'does not implement'],

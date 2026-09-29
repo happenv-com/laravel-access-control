@@ -22,7 +22,7 @@ final class PermissionGraphCommand extends Command
                             {--format=tree : Output format (tree, mermaid, dot, json, or one an application registered)}
                             {--model= : The principal\'s model class; defaults to the user provider model of the guard}
                             {--guard= : The guard whose user provider model to use; defaults to the default guard}
-                            {--schema-version=1 : Machine API schema version}';
+                            {--schema-version=2 : Machine API schema version}';
 
     protected $description = 'Draw the permission rules of the catalogue, or what a principal may do and why';
 

@@ -14,7 +14,7 @@ use Happenv\LaravelAccessControl\Diagram\PermissionDiagram;
 describe('PermissionDiagram', function (): void {
     it('hands itself over as data, with its schema', function (): void {
         expect(sampleDiagram()->toArray())->toBe([
-            'schema' => ['name' => 'access-control.permission-diagram', 'version' => 1],
+            'schema' => ['name' => 'access-control.permission-diagram', 'version' => 2],
             'kind' => 'principal',
             'clusters' => [
                 ['id' => 'group:products', 'label' => 'Products', 'parent' => null],

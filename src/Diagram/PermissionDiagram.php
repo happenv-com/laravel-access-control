@@ -10,12 +10,14 @@ use InvalidArgumentException;
  * A drawing of permissions — nodes, the edges between them and the clusters they sit in — that
  * knows no output format. A renderer turns it into text; `toArray()` hands it to an application as
  * data, with the schema it follows.
+ *
+ * Version 2 added the node state `unmet-condition`.
  */
 final readonly class PermissionDiagram
 {
     public const string SCHEMA_NAME = 'access-control.permission-diagram';
 
-    public const int SCHEMA_VERSION = 1;
+    public const int SCHEMA_VERSION = 2;
 
     /**
      * @param  list<DiagramCluster>  $clusters

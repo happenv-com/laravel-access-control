@@ -31,6 +31,11 @@ enum PermissionState: string
     case Restricted = 'restricted';
 
     /**
+     * Granted and allowed by the rules, but the principal fails a condition the permission declares.
+     */
+    case UnmetCondition = 'unmet-condition';
+
+    /**
      * Granted, but a permission it requires is not active.
      */
     case MissingRequirement = 'missing-requirement';
