@@ -225,7 +225,7 @@ final readonly class PrincipalDiagramBuilder
         // Asked of every account — also one answering hasPermissionTo() itself — as the gate asks.
         $unmet = $this->conditions->unmet($permission, $principal) !== [];
 
-        if ($acts && ! $unmet) {
+        if ($acts && ! $unmet && ! $this->restrictions->isRestricted($permission)) {
             if ($isStored($permission)) {
                 return PermissionState::Allowed;
             }

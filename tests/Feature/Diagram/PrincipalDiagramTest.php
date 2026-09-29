@@ -136,6 +136,14 @@ describe('PrincipalDiagramBuilder', function (): void {
             ->and(statesOf(resolve(PrincipalDiagramBuilder::class)->build($refusing))['permission:cross-role.view'])->toBe(PermissionState::Denied->value);
     });
 
+    it('draws a restricted permission as restricted, not allowed, for an account answering hasPermissionTo() itself', function (): void {
+        AccessControl::restrictUsing(fn (PermissionDefinition $permission): bool => $permission === CrossRolePermission::Update);
+
+        $diagram = resolve(PrincipalDiagramBuilder::class)->build(new SelfAnsweringAccount);
+
+        expect($diagram->node('permission:cross-role.update')?->state)->toBe(PermissionState::Restricted);
+    });
+
     it('draws a principal using neither trait by what it answers', function (): void {
         $principal = new class implements AuthControllable
         {
