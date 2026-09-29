@@ -67,8 +67,8 @@ class AccessControl
         $conditions = resolve(PermissionConditions::class);
 
         return (new Collection($this->permissionRegistry->permissions))
-            ->filter(fn (PermissionDefinition $permission): bool => $principal->hasPermissionTo($permission)
-                && ! $restrictions->isRestricted($permission)
+            ->filter(fn (PermissionDefinition $permission): bool => ! $restrictions->isRestricted($permission)
+                && $principal->hasPermissionTo($permission)
                 && $conditions->metBy($permission, $principal))
             ->values();
     }

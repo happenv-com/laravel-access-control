@@ -172,4 +172,23 @@ describe('invariants', function (): void {
 
         expect(collect($account->getGrants())->all())->toBe($stored);
     });
+
+    it('7 — a staged state handed to explainer() never touches stored grants', function (): void {
+        $account = new InMemoryAccount(['condition-rule.alone']);
+
+        $stored = AccessControl::storedGrantsOf($account);
+        $staged = fn (PermissionDefinition $permission): bool => match ($permission) {
+            ConditionRulePermission::Alone => false,
+            ConditionRulePermission::PlainRequirement => true,
+            default => $stored($permission),
+        };
+
+        $explainer = resolve(PermissionResolver::class)->explainer($staged, $account);
+
+        $explainer(ConditionRulePermission::Alone);
+        $explainer(ConditionRulePermission::PlainRequirement);
+        $explainer(ConditionRulePermission::RequiresGuarded);
+
+        expect(collect($account->getGrants())->all())->toBe(['condition-rule.alone']);
+    });
 });
