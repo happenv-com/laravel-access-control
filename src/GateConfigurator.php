@@ -16,6 +16,7 @@ final readonly class GateConfigurator
         private PermissionRegistry $permissionRegistry,
         private VoterRegistry $voterRegistry,
         private PermissionRestrictions $restrictions,
+        private PermissionConditions $conditions,
     ) {}
 
     public function configure(): void
@@ -45,6 +46,13 @@ final readonly class GateConfigurator
                         return Response::deny($this->refusal($permission));
                     }
 
+                    // Last, and for every account — also one answering hasPermissionTo() itself, which
+                    // never reaches the traits, and one that is not AuthControllable at all. The same
+                    // refusal as a missing grant: to the caller it is the same problem.
+                    if (! $this->conditions->metBy($permission, $user)) {
+                        return Response::deny($this->refusal($permission));
+                    }
+
                     return $this->voterRegistry->vote(
                         $permission,
                         $user,
@@ -56,7 +64,7 @@ final readonly class GateConfigurator
     }
 
     /**
-     * The words a refusal comes back in — for a missing grant and a restricted one alike.
+     * The words a refusal comes back in — for a missing grant, a restricted one and an unmet condition alike.
      *
      * ONE refusal for both, deliberately. Consumers publish it verbatim and match on it (an API
      * error envelope, a client that tells "ask for the grant" apart from "sign in"), and on the
