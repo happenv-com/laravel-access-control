@@ -2,7 +2,7 @@
 
 All notable changes to `access-control` will be documented in this file.
 
-## 2.4.0 - 2026-09-29
+## 3.0.0 - Unreleased
 
 ### Added
 
