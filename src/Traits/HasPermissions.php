@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Happenv\LaravelAccessControl\Traits;
 
+use Happenv\LaravelAccessControl\AccessControl;
 use Happenv\LaravelAccessControl\Contracts\HoldsGrants;
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\PermissionResolver;
@@ -53,6 +54,17 @@ trait HasPermissions
     public function getGrants(): iterable
     {
         return $this->getPermissions();
+    }
+
+    /**
+     * Every registered permission this principal may act on now — rules and restrictions applied,
+     * voters not. See {@see AccessControl::effectivePermissions()}.
+     *
+     * @return Collection<int, PermissionDefinition>
+     */
+    public function getEffectivePermissions(): Collection
+    {
+        return resolve(AccessControl::class)->effectivePermissions($this);
     }
 
     /**

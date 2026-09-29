@@ -18,6 +18,7 @@ All notable changes to `access-control` will be documented in this file.
 - `PermissionResolver`, a singleton, with `allows($permission, $stored)` and `explain($permission, $stored)`. `explain()` returns a `PermissionResolutionDto` for a UI.
 - `Contracts\HoldsGrants`: a role that hands over its raw grants (`getGrants()`, provided by `HasPermissions`). A principal then resolves rules over the union of its roles and reads their grants once per instance.
 - `PermissionDto::$rules`: every `PermissionRuleDto` a permission declares or is the target of. `PermissionCollection` attaches them with the reason translated.
+- `getEffectivePermissions()` on `HasPermissions`, `HasRoles` and `HasRolesAndPermissions`, and `AccessControl::effectivePermissions($principal)` for any `AuthControllable`: every registered permission the principal may act on now, as a `Collection` of enum cases. Rules and restrictions count; voters do not.
 - `PermissionReflector::getRules()`.
 
 ### Changed
