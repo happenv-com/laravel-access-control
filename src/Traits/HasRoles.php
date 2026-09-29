@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Happenv\LaravelAccessControl\Traits;
 
 use BackedEnum;
+use Happenv\LaravelAccessControl\AccessControl;
 use Happenv\LaravelAccessControl\Contracts\AuthControllable;
 use Happenv\LaravelAccessControl\Contracts\HoldsGrants;
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\PermissionResolver;
 use Happenv\LaravelAccessControl\PermissionRestrictions;
+use Illuminate\Support\Collection;
 
 /**
  * @phpstan-ignore trait.unused
@@ -183,6 +185,17 @@ trait HasRoles
         }
 
         return $asked ? false : null;
+    }
+
+    /**
+     * Every registered permission this principal may act on now — rules and restrictions applied,
+     * voters not. See {@see AccessControl::effectivePermissions()}.
+     *
+     * @return Collection<int, PermissionDefinition>
+     */
+    public function getEffectivePermissions(): Collection
+    {
+        return resolve(AccessControl::class)->effectivePermissions($this);
     }
 
     /**

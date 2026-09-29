@@ -2,8 +2,10 @@
 
 namespace Happenv\LaravelAccessControl;
 
+use Happenv\LaravelAccessControl\Contracts\AuthControllable;
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\Diagram\PermissionDiagrams;
+use Illuminate\Support\Collection;
 
 class AccessControl
 {
@@ -38,6 +40,23 @@ class AccessControl
     public function isRestricted(PermissionDefinition $permission): bool
     {
         return resolve(PermissionRestrictions::class)->isRestricted($permission);
+    }
+
+    /**
+     * Every registered permission the principal may act on now, in registration order: its own
+     * `hasPermissionTo()` asked for each, so rules and restrictions count — and so does whatever a
+     * principal answering that method itself (an administrator short-circuit) decides.
+     *
+     * Voters do not: they judge an action on a particular object, and a list has none to hand them.
+     * A permission nobody registered is not listed — the registry is the only catalogue there is.
+     *
+     * @return Collection<int, PermissionDefinition>
+     */
+    public function effectivePermissions(AuthControllable $principal): Collection
+    {
+        return (new Collection($this->permissionRegistry->permissions))
+            ->filter(fn (PermissionDefinition $permission): bool => $principal->hasPermissionTo($permission))
+            ->values();
     }
 
     public function reflectPermission(string $permissionClass): void
