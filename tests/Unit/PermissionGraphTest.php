@@ -3,9 +3,12 @@
 declare(strict_types=1);
 
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
+use Happenv\LaravelAccessControl\Dto\PermissionProblemDto;
 use Happenv\LaravelAccessControl\Exceptions\InvalidPermissionRuleException;
 use Happenv\LaravelAccessControl\PermissionGraph;
+use Happenv\LaravelAccessControl\PermissionProblemType;
 use Happenv\LaravelAccessControl\PermissionRegistry;
+use Happenv\LaravelAccessControl\PermissionRuleType;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\ProductPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\DuplicateRulePermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\GalleryPermission;
@@ -13,6 +16,7 @@ use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ImplicationCyc
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ProblemPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\RequirementCyclePermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\SelfReferencingPermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\UnregisteredPermission;
 
 describe('PermissionGraph', function (): void {
     describe('indexing', function (): void {
@@ -126,6 +130,33 @@ describe('PermissionGraph', function (): void {
 
         it('reports nothing about a sound catalogue', function (): void {
             expect(graphOver(ProductPermission::class, GalleryPermission::class)->problems())->toBe([]);
+        });
+
+        it('describes each problem as data, in declaration order', function (): void {
+            expect(graphOver(ProblemPermission::class)->problemDetails())->toEqual([
+                new PermissionProblemDto(PermissionProblemType::RequiresConflicting, ProblemPermission::DirectP, ProblemPermission::DirectC, PermissionRuleType::ConflictsWith),
+                new PermissionProblemDto(PermissionProblemType::RequiresConflicting, ProblemPermission::TransitiveP, ProblemPermission::TransitiveC, PermissionRuleType::ConflictsWith),
+                new PermissionProblemDto(PermissionProblemType::ImpliesConflicting, ProblemPermission::ImpliesP, ProblemPermission::ImpliesC, PermissionRuleType::ConflictsWith),
+                new PermissionProblemDto(PermissionProblemType::ImpliesConflicting, ProblemPermission::ChainP, ProblemPermission::ChainC, PermissionRuleType::ConflictsWith),
+                new PermissionProblemDto(PermissionProblemType::UnregisteredTarget, ProblemPermission::OrphanP, UnregisteredPermission::Orphan, PermissionRuleType::Requires),
+            ]);
+        });
+
+        it('words the same problems problems() lists, one to one (invariant 8)', function (): void {
+            $graph = graphOver(ProblemPermission::class);
+            $sentences = $graph->problems();
+
+            expect($sentences)->toHaveCount(count($graph->problemDetails()));
+
+            foreach ($graph->problemDetails() as $index => $problem) {
+                expect($sentences[$index])
+                    ->toStartWith(ProblemPermission::class . '::' . $problem->permission->name . ' ')
+                    ->toContain($problem->other::class . '::' . $problem->other->name);
+            }
+        });
+
+        it('has no details about a sound catalogue', function (): void {
+            expect(graphOver(ProductPermission::class, GalleryPermission::class)->problemDetails())->toBe([]);
         });
     });
 });

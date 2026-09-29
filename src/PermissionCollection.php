@@ -17,13 +17,19 @@ final readonly class PermissionCollection
 {
     private PermissionGraph $graph;
 
+    private PermissionConditions $conditions;
+
     public function __construct(
         private PermissionRegistry $registry,
         ?PermissionGraph $graph = null,
+        ?PermissionConditions $conditions = null,
     ) {
         // Optional, so a collection built over a registry of its own keeps working: its graph has to
         // index THAT registry, which the container's does not.
         $this->graph = $graph ?? new PermissionGraph($registry);
+
+        // Facts about the code, like the rules — a collection of its own may read them afresh.
+        $this->conditions = $conditions ?? new PermissionConditions;
     }
 
     /**
@@ -100,7 +106,7 @@ final readonly class PermissionCollection
 
     /**
      * Put every rule on BOTH of its ends, its reason read now — in this request's locale, never in
-     * that of whoever compiled the graph.
+     * that of whoever compiled the graph — and every condition on its permission.
      *
      * @param  array<string, PermissionGroupDto>  $grouped
      */
@@ -130,6 +136,7 @@ final readonly class PermissionCollection
             }
 
             $permission->rules = $rules;
+            $permission->conditions = $this->conditions->for($permission->enum);
         }
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Happenv\LaravelAccessControl;
 
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
+use Happenv\LaravelAccessControl\Dto\PermissionProblemDto;
 use Happenv\LaravelAccessControl\Exceptions\InvalidPermissionRuleException;
 
 /**
@@ -143,6 +144,34 @@ final class PermissionGraph
      */
     public function problems(): array
     {
+        return array_map(fn (PermissionProblemDto $problem): string => match ($problem->type) {
+            PermissionProblemType::RequiresConflicting => sprintf(
+                '%s can never be allowed: it requires %s, which it conflicts with.',
+                $this->describe($problem->permission),
+                $this->describe($problem->other),
+            ),
+            PermissionProblemType::ImpliesConflicting => sprintf(
+                '%s can never be allowed: it implies %s, which it conflicts with.',
+                $this->describe($problem->permission),
+                $this->describe($problem->other),
+            ),
+            PermissionProblemType::UnregisteredTarget => sprintf(
+                '%s declares %s about %s, whose enum is not registered.',
+                $this->describe($problem->permission),
+                $problem->ruleType->name,
+                $this->describe($problem->other),
+            ),
+        }, $this->problemDetails());
+    }
+
+    /**
+     * The same problems as {@see self::problems()}, as data — for a UI that words them itself, in
+     * the operator's language, and marks the rows involved.
+     *
+     * @return list<PermissionProblemDto>
+     */
+    public function problemDetails(): array
+    {
         $this->compile();
 
         $problems = [];
@@ -153,30 +182,17 @@ final class PermissionGraph
 
             foreach ($conflicting as $other) {
                 if (isset($required[$other->value])) {
-                    $problems[] = sprintf(
-                        '%s can never be allowed: it requires %s, which it conflicts with.',
-                        $this->describe($permission),
-                        $this->describe($other),
-                    );
+                    $problems[] = new PermissionProblemDto(PermissionProblemType::RequiresConflicting, $permission, $other, PermissionRuleType::ConflictsWith);
                 } elseif (! isset($this->requirements[$other->value]) && in_array($permission, $this->impliers[$other->value] ?? [], true)) {
                     // Certain only while the implied permission needs nothing: granted, it is active.
-                    $problems[] = sprintf(
-                        '%s can never be allowed: it implies %s, which it conflicts with.',
-                        $this->describe($permission),
-                        $this->describe($other),
-                    );
+                    $problems[] = new PermissionProblemDto(PermissionProblemType::ImpliesConflicting, $permission, $other, PermissionRuleType::ConflictsWith);
                 }
             }
         }
 
         foreach ($this->rules as $rule) {
             if (($this->registry->permissions[$rule->other->value] ?? null) !== $rule->other) {
-                $problems[] = sprintf(
-                    '%s declares %s about %s, whose enum is not registered.',
-                    $this->describe($rule->permission),
-                    $rule->type->name,
-                    $this->describe($rule->other),
-                );
+                $problems[] = new PermissionProblemDto(PermissionProblemType::UnregisteredTarget, $rule->permission, $rule->other, $rule->type);
             }
         }
 
