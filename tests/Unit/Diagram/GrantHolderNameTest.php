@@ -6,6 +6,7 @@ use Happenv\LaravelAccessControl\Diagram\GrantHolderName;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Models\InMemoryRole;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Models\NamedGrantRole;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Models\User;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 
 describe('GrantHolderName', function (): void {
@@ -15,6 +16,22 @@ describe('GrantHolderName', function (): void {
 
     it('uses the name attribute of an Eloquent model', function (): void {
         expect(GrantHolderName::of(new User(['name' => 'Jan'])))->toBe('Jan');
+    });
+
+    it('uses a name an accessor provides', function (): void {
+        $model = new class extends Model
+        {
+            protected function name(): Attribute
+            {
+                return Attribute::get(fn (): string => 'From an accessor');
+            }
+        };
+
+        expect(GrantHolderName::of($model))->toBe('From an accessor');
+    });
+
+    it('falls back to the class when a holder names itself with nothing', function (): void {
+        expect(GrantHolderName::of(new NamedGrantRole('')))->toBe('NamedGrantRole');
     });
 
     it('falls back to the class and key of a model without a name', function (): void {

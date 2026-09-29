@@ -8,7 +8,7 @@ use Happenv\LaravelAccessControl\Diagram\PermissionState;
 
 /**
  * One set of colours for every renderer that draws states: green for what works, blue for what
- * comes with something else, amber for what is withheld, red for a conflict or a refusal, grey for
+ * comes with something else, purple for what the principal allows on its own say, amber for what is withheld, red for a conflict or a refusal, grey for
  * what is missing — and a dashed outline for what is not there at all.
  *
  * @internal
@@ -20,6 +20,7 @@ final class StatePalette
         return match ($state) {
             PermissionState::Allowed => '#dcfce7',
             PermissionState::Implied => '#dbeafe',
+            PermissionState::Overridden => '#f3e8ff',
             PermissionState::Restricted => '#fef3c7',
             PermissionState::MissingRequirement => '#f3f4f6',
             PermissionState::Conflict, PermissionState::Denied => '#fee2e2',
@@ -32,6 +33,7 @@ final class StatePalette
         return match ($state) {
             PermissionState::Allowed => '#16a34a',
             PermissionState::Implied => '#2563eb',
+            PermissionState::Overridden => '#9333ea',
             PermissionState::Restricted => '#d97706',
             PermissionState::MissingRequirement => '#6b7280',
             PermissionState::Conflict => '#dc2626',

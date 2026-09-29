@@ -16,7 +16,7 @@ final class GrantHolderName
 {
     public static function of(object $holder): string
     {
-        if ($holder instanceof DescribesGrantHolder) {
+        if ($holder instanceof DescribesGrantHolder && $holder->getGrantHolderName() !== '') {
             return $holder->getGrantHolderName();
         }
 
@@ -26,9 +26,9 @@ final class GrantHolderName
             return $class;
         }
 
-        // Read only when present: under Model::preventAccessingMissingAttributes() asking for an
-        // attribute the row lacks throws.
-        if (array_key_exists('name', $holder->getAttributes())) {
+        // Asked only when the model has one — a column, a cast or an accessor: under
+        // Model::preventAccessingMissingAttributes() asking for one it lacks throws.
+        if ($holder->hasAttribute('name')) {
             $name = $holder->getAttribute('name');
 
             if (is_string($name) && $name !== '') {

@@ -40,15 +40,27 @@ final class TreeRenderer implements DiagramRenderer
 
         $rest = $this->section($diagram, null, $printed);
 
-        if ($diagram->kind === DiagramKind::Principal) {
-            if ($rest !== []) {
-                $roots[] = ['not stored', $rest];
-            }
-        } else {
+        if ($diagram->kind !== DiagramKind::Principal) {
             $roots = [...$roots, ...$rest];
+        } elseif ($rest !== [] && $this->holdsAnything($diagram)) {
+            $roots[] = ['not stored', $rest];
+        } elseif ($rest !== [] && $roots !== []) {
+            // Nothing held could be read: what the principal may do hangs off the principal itself.
+            $roots[0][1] = [...$roots[0][1], ...$rest];
         }
 
         return implode("\n", $this->lines($roots, null));
+    }
+
+    private function holdsAnything(PermissionDiagram $diagram): bool
+    {
+        foreach ($diagram->edges as $edge) {
+            if ($edge->kind->isStructural()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -163,17 +175,25 @@ final class TreeRenderer implements DiagramRenderer
 
         foreach ($items as $index => [$text, $children]) {
             if ($prefix === null) {
-                $lines[] = $text;
+                $lines[] = $this->oneLine($text);
                 array_push($lines, ...$this->lines($children, ''));
 
                 continue;
             }
 
             $isLast = $index === $last;
-            $lines[] = $prefix . ($isLast ? '└── ' : '├── ') . $text;
+            $lines[] = $prefix . ($isLast ? '└── ' : '├── ') . $this->oneLine($text);
             array_push($lines, ...$this->lines($children, $prefix . ($isLast ? '    ' : '│   ')));
         }
 
         return $lines;
+    }
+
+    /**
+     * A line break in a label would break the tree's lines.
+     */
+    private function oneLine(string $text): string
+    {
+        return str_replace(["\r\n", "\n", "\r"], ' ', $text);
     }
 }

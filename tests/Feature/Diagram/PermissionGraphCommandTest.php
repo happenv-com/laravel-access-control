@@ -74,6 +74,28 @@ describe('permission:graph', function (): void {
             ->and($output)->toStartWith('Jan');
     });
 
+    it('writes the diagram as it is, without reading console styles into it', function (): void {
+        $this->user->update(['name' => 'Jan <comment>boss</comment> a\\<b']);
+
+        [$exitCode, $output] = permissionGraph(['principal' => $this->user->id, '--format' => 'json']);
+
+        expect($exitCode)->toBe(0)
+            ->and(json_decode($output, true)['nodes'][0]['label'])->toBe('Jan <comment>boss</comment> a\\<b');
+    });
+
+    it('loads the principal through the guard it is given', function (): void {
+        config([
+            'auth.providers.users.model' => null,
+            'auth.guards.admin' => ['driver' => 'session', 'provider' => 'admins'],
+            'auth.providers.admins' => ['driver' => 'eloquent', 'model' => User::class],
+        ]);
+
+        [$exitCode, $output] = permissionGraph(['principal' => $this->user->id, '--guard' => 'admin']);
+
+        expect($exitCode)->toBe(0)
+            ->and($output)->toStartWith('Jan');
+    });
+
     it('refuses what it cannot draw', function (array $arguments, string $message): void {
         [$exitCode, $output] = permissionGraph($arguments);
 

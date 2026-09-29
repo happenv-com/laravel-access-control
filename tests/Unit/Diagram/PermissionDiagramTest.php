@@ -9,6 +9,7 @@ use Happenv\LaravelAccessControl\Diagram\DiagramKind;
 use Happenv\LaravelAccessControl\Diagram\DiagramNode;
 use Happenv\LaravelAccessControl\Diagram\EdgeKind;
 use Happenv\LaravelAccessControl\Diagram\NodeKind;
+use Happenv\LaravelAccessControl\Diagram\PermissionDiagram;
 
 describe('PermissionDiagram', function (): void {
     it('hands itself over as data, with its schema', function (): void {
@@ -44,6 +45,19 @@ describe('PermissionDiagram', function (): void {
             ->and(array_map(fn (DiagramCluster $cluster): string => $cluster->id, $diagram->clustersIn('group:products')))->toBe(['subject:gallery'])
             ->and(array_map(fn (DiagramEdge $edge): string => $edge->to, $diagram->edgesFrom('principal')))->toBe(['role:0']);
     });
+
+    it('refuses what its renderers could not draw', function (array $clusters, array $nodes, array $edges, string $message): void {
+        // A diagram an application builds by hand is held to what every renderer relies on.
+        expect(fn (): PermissionDiagram => new PermissionDiagram(DiagramKind::Catalogue, $clusters, $nodes, $edges))
+            ->toThrow(InvalidArgumentException::class, $message);
+    })->with([
+        'an edge to a node it does not have' => [[], [], [new DiagramEdge('a', 'b', EdgeKind::Requires)], 'Edge points at a node the diagram does not have: [a].'],
+        'two nodes with one id' => [[], [new DiagramNode('a', NodeKind::Permission, 'A'), new DiagramNode('a', NodeKind::Permission, 'B')], [], 'Two nodes share the id [a].'],
+        'a node in a cluster it does not have' => [[], [new DiagramNode('a', NodeKind::Permission, 'A', cluster: 'c')], [], 'Node [a] sits in a cluster the diagram does not have: [c].'],
+        'two clusters with one id' => [[new DiagramCluster('c', 'C'), new DiagramCluster('c', 'D')], [], [], 'Two clusters share the id [c].'],
+        'a cluster in a cluster it does not have' => [[new DiagramCluster('c', 'C', 'p')], [], [], 'Cluster [c] sits in a cluster the diagram does not have: [p].'],
+        'a cluster inside itself' => [[new DiagramCluster('c', 'C', 'd'), new DiagramCluster('d', 'D', 'c')], [], [], 'Cluster [c] sits inside itself.'],
+    ]);
 
     it('tells the structural edges from the rules', function (): void {
         expect(array_map(fn (EdgeKind $kind): bool => $kind->isStructural(), EdgeKind::cases()))

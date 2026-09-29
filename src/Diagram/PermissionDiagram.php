@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Happenv\LaravelAccessControl\Diagram;
 
+use InvalidArgumentException;
+
 /**
  * A drawing of permissions — nodes, the edges between them and the clusters they sit in — that
  * knows no output format. A renderer turns it into text; `toArray()` hands it to an application as
@@ -25,7 +27,9 @@ final readonly class PermissionDiagram
         public array $clusters,
         public array $nodes,
         public array $edges,
-    ) {}
+    ) {
+        $this->assertDrawable($clusters, $nodes, $edges);
+    }
 
     public function node(string $id): ?DiagramNode
     {
@@ -83,5 +87,68 @@ final readonly class PermissionDiagram
             'nodes' => array_map(fn (DiagramNode $node): array => $node->toArray(), $this->nodes),
             'edges' => array_map(fn (DiagramEdge $edge): array => $edge->toArray(), $this->edges),
         ];
+    }
+
+    /**
+     * A diagram an application builds by hand is held to what every renderer relies on: each id
+     * used once, every cluster, parent and edge end known, and no cluster inside itself. Anything
+     * else would be drawn wrong, quietly — a node without its cluster, an edge to nowhere.
+     *
+     * @param  list<DiagramCluster>  $clusters
+     * @param  list<DiagramNode>  $nodes
+     * @param  list<DiagramEdge>  $edges
+     *
+     * @throws InvalidArgumentException
+     */
+    private function assertDrawable(array $clusters, array $nodes, array $edges): void
+    {
+        $parents = [];
+
+        foreach ($clusters as $cluster) {
+            if (array_key_exists($cluster->id, $parents)) {
+                throw new InvalidArgumentException(sprintf('Two clusters share the id [%s].', $cluster->id));
+            }
+
+            $parents[$cluster->id] = $cluster->parent;
+        }
+
+        foreach ($parents as $id => $parent) {
+            $seen = [$id => true];
+
+            while ($parent !== null) {
+                if (! array_key_exists($parent, $parents)) {
+                    throw new InvalidArgumentException(sprintf('Cluster [%s] sits in a cluster the diagram does not have: [%s].', $id, $parent));
+                }
+
+                if (isset($seen[$parent])) {
+                    throw new InvalidArgumentException(sprintf('Cluster [%s] sits inside itself.', $id));
+                }
+
+                $seen[$parent] = true;
+                $parent = $parents[$parent];
+            }
+        }
+
+        $ids = [];
+
+        foreach ($nodes as $node) {
+            if (isset($ids[$node->id])) {
+                throw new InvalidArgumentException(sprintf('Two nodes share the id [%s].', $node->id));
+            }
+
+            if ($node->cluster !== null && ! array_key_exists($node->cluster, $parents)) {
+                throw new InvalidArgumentException(sprintf('Node [%s] sits in a cluster the diagram does not have: [%s].', $node->id, $node->cluster));
+            }
+
+            $ids[$node->id] = true;
+        }
+
+        foreach ($edges as $edge) {
+            foreach ([$edge->from, $edge->to] as $end) {
+                if (! isset($ids[$end])) {
+                    throw new InvalidArgumentException(sprintf('Edge points at a node the diagram does not have: [%s].', $end));
+                }
+            }
+        }
     }
 }

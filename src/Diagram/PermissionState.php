@@ -20,6 +20,12 @@ enum PermissionState: string
     case Implied = 'implied';
 
     /**
+     * Effective because the principal's own `hasPermissionTo()` says so, though nothing it holds
+     * stores or implies it — an administrator short-circuit.
+     */
+    case Overridden = 'overridden';
+
+    /**
      * The rules allow it; a runtime restriction withholds it.
      */
     case Restricted = 'restricted';

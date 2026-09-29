@@ -137,6 +137,9 @@ final class MermaidRenderer implements DiagramRenderer
      */
     private function escape(string $text): string
     {
-        return str_replace(['"', '<', '>', "\r\n", "\n", "\r"], ['#quot;', '#lt;', '#gt;', ' ', ' ', ' '], $text);
+        $escaped = str_replace(['"', '<', '>', "\r\n", "\n", "\r"], ['#quot;', '#lt;', '#gt;', ' ', ' ', ' '], $text);
+
+        // An empty quoted label does not parse; a space draws the same nothing.
+        return $escaped === '' ? ' ' : $escaped;
     }
 }

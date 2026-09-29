@@ -14,6 +14,7 @@ use Happenv\LaravelAccessControl\PermissionRestrictions;
 use Happenv\LaravelAccessControl\PermissionRuleType;
 use Happenv\LaravelAccessControl\Traits\HasPermissions;
 use Happenv\LaravelAccessControl\Traits\HasRoles;
+use InvalidArgumentException;
 
 /**
  * What one principal may do and why: the principal, what it holds — its direct grants, its roles —
@@ -31,6 +32,9 @@ final readonly class PrincipalDiagramBuilder
         private PermissionRestrictions $restrictions,
     ) {}
 
+    /**
+     * @throws InvalidArgumentException for a role that cannot be asked what it holds
+     */
     public function build(AuthControllable $principal): PermissionDiagram
     {
         $catalogue = new DiagramCatalogue($this->collection);
@@ -47,25 +51,26 @@ final readonly class PrincipalDiagramBuilder
             $draft->addNode(new DiagramNode('direct', NodeKind::Direct, 'direct grants'));
             $structural[] = new DiagramEdge('principal', 'direct', EdgeKind::Holds);
 
-            foreach ($this->registered($catalogue, $principal->getGrants()) as $permission) {
-                $stored[$permission->value] = true;
-                $structural[] = new DiagramEdge('direct', DiagramCatalogue::id($permission), EdgeKind::Stores);
+            foreach ($this->ordered($catalogue, $principal->getGrants()) as $value) {
+                $stored[$value] = true;
+                $structural[] = new DiagramEdge('direct', DiagramCatalogue::id($value), EdgeKind::Stores);
             }
         }
 
         if (isset($traits[HasRoles::class]) && method_exists($principal, 'getRoles')) {
             $readable = true;
-            $index = 0;
+            $position = 0;
 
             foreach ($principal->getRoles() as $role) {
-                $id = 'role:' . $index++;
+                $id = 'role:' . $position;
+                $held = $this->held($catalogue, $role, $position++, $principal);
 
                 $draft->addNode(new DiagramNode($id, NodeKind::Role, GrantHolderName::of($role)));
                 $structural[] = new DiagramEdge('principal', $id, EdgeKind::Holds);
 
-                foreach ($this->held($catalogue, $role) as [$permission, $kind]) {
-                    $stored[$permission->value] = true;
-                    $structural[] = new DiagramEdge($id, DiagramCatalogue::id($permission), $kind);
+                foreach ($held as [$value, $kind]) {
+                    $stored[$value] = true;
+                    $structural[] = new DiagramEdge($id, DiagramCatalogue::id($value), $kind);
                 }
             }
         }
@@ -76,12 +81,16 @@ final readonly class PrincipalDiagramBuilder
             ? fn (PermissionDefinition $permission): bool => isset($stored[$permission->value])
             : $principal->hasPermissionTo(...);
 
-        foreach ($this->shown($catalogue, $principal, $stored) as $permission) {
+        foreach ($this->shown($catalogue, $principal, $isStored) as $permission) {
             $catalogue->addPermission($draft, $permission, $this->state($principal, $permission, $isStored));
         }
 
+        // A stored value is drawn where its permission is: always for a registered one, and for one
+        // nobody registered only when a rule makes it a node.
         foreach ($structural as $edge) {
-            $draft->addEdge($edge);
+            if ($draft->hasNode($edge->to)) {
+                $draft->addEdge($edge);
+            }
         }
 
         $catalogue->addRuleEdges($draft);
@@ -91,24 +100,38 @@ final readonly class PrincipalDiagramBuilder
 
     /**
      * What a role holds, and how the diagram knows: a {@see HoldsGrants} role hands over what it
-     * stores; any other role is asked, permission by permission, whether it may act.
+     * stores; any other role is asked, permission by permission, whether it may act — so what it
+     * withholds, for a restriction or a rule of its own, is not drawn.
      *
-     * @return list<array{PermissionDefinition, EdgeKind}>
+     * @return list<array{int|string, EdgeKind}>
+     *
+     * @throws InvalidArgumentException for a role that cannot be asked
      */
-    private function held(DiagramCatalogue $catalogue, AuthControllable $role): array
+    private function held(DiagramCatalogue $catalogue, mixed $role, int $position, AuthControllable $principal): array
     {
         if ($role instanceof HoldsGrants) {
             return array_map(
-                fn (PermissionDefinition $permission): array => [$permission, EdgeKind::Stores],
-                $this->registered($catalogue, $role->getGrants()),
+                fn (int | string $value): array => [$value, EdgeKind::Stores],
+                $this->ordered($catalogue, $role->getGrants()),
             );
+        }
+
+        // HasRoles asks its roles by duck typing, so a role need not declare AuthControllable — but
+        // it has to answer hasPermissionTo(), or there is nothing to draw it with.
+        if (! is_object($role) || ! method_exists($role, 'hasPermissionTo')) {
+            throw new InvalidArgumentException(sprintf(
+                'Role %d of %s is %s, which does not answer hasPermissionTo(); it cannot be drawn.',
+                $position,
+                get_debug_type($principal),
+                get_debug_type($role),
+            ));
         }
 
         $held = [];
 
         foreach ($catalogue->permissions() as $permission) {
             if ($role->hasPermissionTo($permission->enum)) {
-                $held[] = [$permission->enum, EdgeKind::Grants];
+                $held[] = [$permission->enum->value, EdgeKind::Grants];
             }
         }
 
@@ -116,45 +139,50 @@ final readonly class PrincipalDiagramBuilder
     }
 
     /**
-     * The registered permissions among stored values, in catalogue order. A value nobody registered
-     * is not in the catalogue, and there is nothing to draw it with.
+     * Stored values in catalogue order, then the ones nobody registered in the order they came.
      *
-     * @param  iterable<string>  $values
-     * @return list<PermissionDefinition>
+     * @param  iterable<int|string>  $values
+     * @return list<int|string>
      */
-    private function registered(DiagramCatalogue $catalogue, iterable $values): array
+    private function ordered(DiagramCatalogue $catalogue, iterable $values): array
     {
-        $wanted = [];
+        $given = [];
 
         foreach ($values as $value) {
-            $wanted[(string) $value] = true;
+            $given[$value] = true;
         }
 
-        $registered = [];
+        $ordered = [];
 
-        foreach ($catalogue->permissions() as $value => $permission) {
-            if (isset($wanted[(string) $value])) {
-                $registered[] = $permission->enum;
+        foreach (array_keys($catalogue->permissions()) as $value) {
+            if (isset($given[$value])) {
+                $ordered[] = $value;
+                unset($given[$value]);
             }
         }
 
-        return $registered;
+        return [...$ordered, ...array_keys($given)];
     }
 
     /**
-     * The permissions that concern the principal, in catalogue order: what it stores or may act
-     * on, and what those require or conflict with — so a missing requirement and a lost conflict
-     * have a node to point at. A target outside the catalogue comes last.
+     * The permissions that concern the principal, in catalogue order: what it stores, may act on
+     * or is granted — an implied permission that a missing requirement or a lost conflict blocks is
+     * exactly what a diagram has to explain — and what those require or conflict with, so the
+     * reason has a node to point at. A target outside the catalogue comes last.
      *
-     * @param  array<array-key, true>  $stored
+     * @param  Closure(PermissionDefinition): bool  $isStored
      * @return list<PermissionDefinition>
      */
-    private function shown(DiagramCatalogue $catalogue, AuthControllable $principal, array $stored): array
+    private function shown(DiagramCatalogue $catalogue, AuthControllable $principal, Closure $isStored): array
     {
         $concerned = [];
 
         foreach ($catalogue->permissions() as $value => $permission) {
-            if (isset($stored[$value]) || $principal->hasPermissionTo($permission->enum)) {
+            if (
+                $isStored($permission->enum)
+                || $principal->hasPermissionTo($permission->enum)
+                || $this->resolver->explain($permission->enum, $isStored)->granted
+            ) {
                 $concerned[$value] = $permission->enum;
             }
         }
@@ -189,11 +217,16 @@ final readonly class PrincipalDiagramBuilder
      */
     private function state(AuthControllable $principal, PermissionDefinition $permission, Closure $isStored): PermissionState
     {
-        if ($principal->hasPermissionTo($permission)) {
-            return $isStored($permission) ? PermissionState::Allowed : PermissionState::Implied;
-        }
-
         $resolution = $this->resolver->explain($permission, $isStored);
+
+        if ($principal->hasPermissionTo($permission)) {
+            if ($isStored($permission)) {
+                return PermissionState::Allowed;
+            }
+
+            // Implied only when the rules say so; otherwise the principal allowed it on its own say.
+            return $resolution->allowed ? PermissionState::Implied : PermissionState::Overridden;
+        }
 
         if ($resolution->allowed) {
             return $this->restrictions->isRestricted($permission) ? PermissionState::Restricted : PermissionState::Denied;

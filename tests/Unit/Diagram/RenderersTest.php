@@ -9,6 +9,7 @@ use Happenv\LaravelAccessControl\Diagram\DiagramNode;
 use Happenv\LaravelAccessControl\Diagram\EdgeKind;
 use Happenv\LaravelAccessControl\Diagram\NodeKind;
 use Happenv\LaravelAccessControl\Diagram\PermissionDiagram;
+use Happenv\LaravelAccessControl\Diagram\PermissionState;
 use Happenv\LaravelAccessControl\Diagram\Renderer\DiagramRenderer;
 use Happenv\LaravelAccessControl\Diagram\Renderer\DiagramRendererRegistry;
 use Happenv\LaravelAccessControl\Diagram\Renderer\DotRenderer;
@@ -84,6 +85,20 @@ describe('TreeRenderer', function (): void {
     });
 });
 
+describe('labels', function (): void {
+    it('keeps a label with a line break on one line where a line is all there is', function (): void {
+        $diagram = new PermissionDiagram(DiagramKind::Principal, [], [
+            new DiagramNode('principal', NodeKind::Principal, "Two\nlines"),
+            new DiagramNode('role:0', NodeKind::Role, ''),
+        ], [new DiagramEdge('principal', 'role:0', EdgeKind::Holds)]);
+
+        expect((new TreeRenderer)->render($diagram))->toBe("Two lines\n└── ")
+            ->and((new MermaidRenderer)->render($diagram))->toBe("flowchart LR\n    n0([\"Two lines\"])\n    n1[\" \"]\n    n0 --> n1")
+            // DOT turns the break into its own `\n`, which Graphviz draws as a second line.
+            ->and((new DotRenderer)->render($diagram))->toContain('n0 [label="Two\\nlines", shape=ellipse];', 'n1 [label=""];');
+    });
+});
+
 describe('MermaidRenderer', function (): void {
     it('draws a flowchart with nested clusters and a class per state', function (): void {
         expect((new MermaidRenderer)->render(sampleDiagram()))->toBe(<<<'MERMAID'
@@ -117,6 +132,30 @@ describe('MermaidRenderer', function (): void {
                 n1 ==>|"implies"| n2
                 n2 --x|"conflicts with: four eyes"| n3
             MERMAID);
+    });
+});
+
+describe('TreeRenderer on a principal', function (): void {
+    it('marks what a role without HoldsGrants may act on', function (): void {
+        $diagram = new PermissionDiagram(DiagramKind::Principal, [], [
+            new DiagramNode('principal', NodeKind::Principal, 'Jan'),
+            new DiagramNode('role:0', NodeKind::Role, 'Legacy'),
+            new DiagramNode('permission:a', NodeKind::Permission, 'A'),
+        ], [
+            new DiagramEdge('principal', 'role:0', EdgeKind::Holds),
+            new DiagramEdge('role:0', 'permission:a', EdgeKind::Grants),
+        ]);
+
+        expect((new TreeRenderer)->render($diagram))->toBe("Jan\n└── Legacy\n    └── A (may act)");
+    });
+
+    it('hangs the permissions off a principal that holds nothing it could show', function (): void {
+        $diagram = new PermissionDiagram(DiagramKind::Principal, [], [
+            new DiagramNode('principal', NodeKind::Principal, 'Service account'),
+            new DiagramNode('permission:product.view', NodeKind::Permission, 'View Products', ProductPermission::View, PermissionState::Allowed),
+        ], []);
+
+        expect((new TreeRenderer)->render($diagram))->toBe("Service account\n└── View Products (product.view) [allowed]");
     });
 });
 
@@ -161,12 +200,6 @@ describe('DotRenderer', function (): void {
             DOT);
     });
 
-    it('refuses an edge to a node the diagram does not have', function (): void {
-        $diagram = new PermissionDiagram(DiagramKind::Catalogue, [], [], [new DiagramEdge('a', 'b', EdgeKind::Requires)]);
-
-        expect(fn (): string => (new DotRenderer)->render($diagram))
-            ->toThrow(InvalidArgumentException::class, 'Edge points at a node the diagram does not have: [a].');
-    });
 });
 
 describe('JsonRenderer', function (): void {

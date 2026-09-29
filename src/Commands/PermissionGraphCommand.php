@@ -10,6 +10,7 @@ use Happenv\LaravelAccessControl\Diagram\PermissionDiagrams;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
+use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * Draws the permission rules of the whole catalogue, or what one principal may do and why.
@@ -44,7 +45,8 @@ final class PermissionGraphCommand extends Command
                 ? $diagrams->catalogue()
                 : $diagrams->forPrincipal($this->principal((string) $key));
 
-            $this->line($diagrams->render($diagram, (string) $this->option('format')));
+            // Raw: a label is data, and the console would read `<comment>` in it as a style.
+            $this->output->writeln($diagrams->render($diagram, (string) $this->option('format')), OutputInterface::OUTPUT_RAW);
         } catch (InvalidArgumentException $exception) {
             $this->error($exception->getMessage());
 

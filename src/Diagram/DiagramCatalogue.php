@@ -43,9 +43,12 @@ final class DiagramCatalogue
         }
     }
 
-    public static function id(PermissionDefinition $permission): string
+    /**
+     * The node id of a permission — or of a stored value, which may belong to no registered enum.
+     */
+    public static function id(PermissionDefinition | int | string $permission): string
     {
-        return 'permission:' . $permission->value;
+        return 'permission:' . ($permission instanceof PermissionDefinition ? $permission->value : $permission);
     }
 
     /**
