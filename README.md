@@ -49,6 +49,7 @@ This library allows achieving such behavior without tightly coupling the two mod
 - 📦 **Modular architecture** - Each module can register its own voters without modifying core logic
 - 🏷️ **Permission metadata** - Add names, descriptions, and groups to permissions via PHP attributes
 - 🔗 **Rules between permissions** - Declare that a permission requires, comes with or conflicts with another — enforced in every check
+- 🗺️ **Permission graphs** - Draw the catalogue, or what a user may do and why, as a tree, Mermaid, Graphviz or an array
 - ⚡ **Laravel Gate integration** - Works seamlessly with Laravel's authorization system
 
 ## When to Use This Package
@@ -656,6 +657,122 @@ $resolution->conflicting; // the permissions it conflicts with that are active
 
 A role editor should still read and save the **stored** grants. See the note on grant containers in
 the previous section.
+
+### 8. Drawing Permission Graphs (Optional)
+
+Draw the rules of the whole catalogue, or what one principal may do and why.
+
+#### In the terminal
+
+```bash
+php artisan permission:graph                      # the whole catalogue
+php artisan permission:graph 42                   # the user with key 42
+php artisan permission:graph 42 --format=mermaid  # paste straight into a document
+php artisan permission:graph 42 --format=dot      # pipe into Graphviz: | dot -Tsvg > user.svg
+php artisan permission:graph 42 --format=json     # a machine contract, versioned by its schema
+```
+
+The principal is loaded with the user provider model of the default guard. Pick another guard with
+`--guard=admin`, or name the model with `--model="App\Models\Admin"`. It has to implement
+`AuthControllable`.
+
+For a user who stores `product.update` directly and holds an `Editor` role storing `gallery.view`,
+with the rules from the previous section, `permission:graph` prints:
+
+```
+Jan
+├── direct grants
+│   └── Update Products (product.update) [allowed]
+│       └── implies Manage Gallery
+└── Editor
+    └── View Gallery (gallery.view) [missing requirement]
+        └── requires View Products
+not stored
+└── Products
+    ├── Product
+    │   └── View Products (product.view) [not granted]
+    └── Gallery
+        └── Manage Gallery (gallery.manage) [implied]
+            └── implied by Update Products
+```
+
+A principal's graph shows the roles it holds (`getRoles()`) and its direct grants (`HasPermissions`).
+It also shows what each of them stores, and every permission that concerns the principal, marked with
+its state:
+
+| State | Meaning |
+|---|---|
+| `allowed` | effective and stored |
+| `implied` | effective without being stored — something the principal holds implies it |
+| `restricted` | the rules allow it; a runtime restriction withholds it |
+| `missing requirement` | granted, but a permission it requires is not active |
+| `conflict` | it loses a conflict it declares |
+| `denied` | the principal's own `hasPermissionTo()` refuses it for another reason |
+| `not granted` | drawn only because a rule points at it |
+
+A role that implements `HoldsGrants` shows what it stores. Any other role is asked about each
+permission, and its edges read "may act".
+
+#### In your application
+
+```php
+use Happenv\LaravelAccessControl\Facades\AccessControl;
+
+$diagram = AccessControl::diagram()->forPrincipal($user);   // or ->catalogue()
+
+AccessControl::diagram()->render($diagram, 'mermaid');      // or 'dot', 'tree', 'json'
+$diagram->toArray();                                        // nodes, edges and clusters, to draw yourself
+```
+
+Render the Mermaid text with [mermaid.js](https://mermaid.js.org) on a page:
+
+```blade
+<pre class="mermaid">{{ AccessControl::diagram()->render($diagram, 'mermaid') }}</pre>
+<script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true });
+</script>
+```
+
+`toArray()` returns:
+- `schema` (`access-control.permission-diagram`, version 1);
+- `kind`;
+- `clusters` (`id`, `label`, `parent`);
+- `nodes` (`id`, `kind`, `label`, `permission`, `state`, `cluster`);
+- `edges` (`from`, `to`, `kind`, `label`).
+
+That is enough for cytoscape, d3 or a list of your own.
+
+#### Naming principals and roles
+
+A node is labelled with:
+1. `getGrantHolderName()`, when the class implements `DescribesGrantHolder`;
+2. otherwise an Eloquent `name` attribute;
+3. otherwise the class name and key (`Role#3`).
+
+```php
+use Happenv\LaravelAccessControl\Contracts\DescribesGrantHolder;
+
+class Role extends Model implements AuthControllable, HoldsGrants, DescribesGrantHolder
+{
+    public function getGrantHolderName(): string
+    {
+        return $this->title;
+    }
+}
+```
+
+#### Your own format
+
+Implement `DiagramRenderer` and tag it. A renderer of an existing format replaces the package's own:
+
+```php
+use Happenv\LaravelAccessControl\Diagram\Renderer\DiagramRendererRegistry;
+
+$this->app->tag([PlantUmlRenderer::class], DiagramRendererRegistry::TAG);
+```
+
+It is then available to `render()` and to `permission:graph --format=`.
 
 ## How Voters Work
 
