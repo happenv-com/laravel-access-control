@@ -56,7 +56,7 @@ final readonly class PermissionResolver
             granted: $evaluation->granted($permission),
             grantedBy: array_values(array_filter(
                 $this->graph->directImpliers($permission),
-                $evaluation->granted(...),
+                fn (PermissionDefinition $implier): bool => $evaluation->grantedAvoiding($implier, $permission),
             )),
             missing: array_values(array_filter(
                 $this->graph->requirements($permission),

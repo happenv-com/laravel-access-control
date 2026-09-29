@@ -187,7 +187,7 @@ trait HasRoles
 
     /**
      * Clear the per-instance memo, and the roles' grants with it. Call after the
-     * user's roles or permissions change within the same request.
+     * user's roles, or the grants of one of its roles, change within the same request.
      */
     public function forgetResolvedPermissions(): void
     {

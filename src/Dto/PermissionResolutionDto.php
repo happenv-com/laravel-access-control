@@ -23,7 +23,8 @@ final readonly class PermissionResolutionDto
         /** Stored, or stored by anything that implies it. */
         public bool $granted,
         /**
-         * The permissions it declares itself implied by that are granted.
+         * The permissions it declares itself implied by that are granted — each by something other
+         * than this permission, so a cycle of implications does not name its own members.
          *
          * @var list<PermissionDefinition>
          */

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Happenv\LaravelAccessControl\Traits;
 
+use BackedEnum;
 use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\PermissionResolver;
 use Happenv\LaravelAccessControl\PermissionRestrictions;
@@ -31,8 +32,11 @@ trait HasRolesAndPermissions
     public function hasPermissionTo($permission): bool
     {
         if (! $permission instanceof PermissionDefinition) {
-            // An ability string: neither rules nor restrictions apply to one.
-            return $this->getPermissions()->contains((string) $permission)
+            // An ability string, or a backed enum that is not a permission — read by its value, as
+            // HasRoles reads it. Neither rules nor restrictions apply to one.
+            $ability = $permission instanceof BackedEnum ? (string) $permission->value : (string) $permission;
+
+            return $this->getPermissions()->contains($ability)
                 || $this->hasRolePermissionTo($permission);
         }
 

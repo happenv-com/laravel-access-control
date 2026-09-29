@@ -84,6 +84,35 @@ final class PermissionEvaluation
         return true;
     }
 
+    /**
+     * Whether the permission is granted by what is stored WITHOUT going through `$excluded` — for
+     * naming what grants `$excluded`. In a cycle of implications everything in it is granted the
+     * moment one of it is stored, and none of the rest is what grants that one.
+     */
+    public function grantedAvoiding(PermissionDefinition $permission, PermissionDefinition $excluded): bool
+    {
+        $seen = [$excluded->value => true];
+        $pending = [$permission];
+
+        while ($pending !== []) {
+            $candidate = array_pop($pending);
+
+            if (isset($seen[$candidate->value])) {
+                continue;
+            }
+
+            $seen[$candidate->value] = true;
+
+            if ($this->stored($candidate)) {
+                return true;
+            }
+
+            array_push($pending, ...$this->graph->directImpliers($candidate));
+        }
+
+        return false;
+    }
+
     private function resolveGranted(PermissionDefinition $permission): bool
     {
         if ($this->stored($permission)) {

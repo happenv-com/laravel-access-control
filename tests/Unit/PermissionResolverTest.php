@@ -14,6 +14,7 @@ use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\CrossRolePermi
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\GalleryPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\GatedScopePermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ImplicationCyclePermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ImplicationDetourPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ImpliedThroughConflictPermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\ImpliedThroughInactivePermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\NaturalPairPermission;
@@ -150,6 +151,21 @@ describe('PermissionResolver', function (): void {
 
             expect($resolution->allowed)->toBeFalse()
                 ->and($resolution->conflicting)->toBe([CrossRolePermission::ViewAny]);
+        });
+
+        it('names only what grants a permission without going through it', function (): void {
+            // In a cycle everything is granted the moment one of it is stored, and none of the rest
+            // is what grants the stored one.
+            $cycle = resolverOver(ImplicationCyclePermission::class);
+
+            expect($cycle->explain(ImplicationCyclePermission::A, storing('m3.a'))->grantedBy)->toBe([])
+                ->and($cycle->explain(ImplicationCyclePermission::A, storing('m3.c'))->grantedBy)->toBe([ImplicationCyclePermission::B])
+                ->and($cycle->explain(ImplicationCyclePermission::A, storing('m3.a', 'm3.b'))->grantedBy)->toBe([ImplicationCyclePermission::B]);
+
+            // B is granted here only because X grants P and P grants B: X is what grants P.
+            expect(resolverOver(ImplicationDetourPermission::class)
+                ->explain(ImplicationDetourPermission::P, storing('implication-detour.x'))->grantedBy)
+                ->toBe([ImplicationDetourPermission::X]);
         });
 
         it('explains a permission without rules by what is stored', function (): void {

@@ -13,6 +13,7 @@ use Happenv\LaravelAccessControl\Tests\Fixtures\Models\RoleHolder;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Models\User;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\BasicRulePermission;
 use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\Rules\CrossRolePermission;
+use Happenv\LaravelAccessControl\Tests\Fixtures\Permissions\TestSurface;
 use Happenv\LaravelAccessControl\Traits\HasRoles;
 use Happenv\LaravelAccessControl\VoterRegistry;
 use Illuminate\Auth\Access\Response;
@@ -261,6 +262,14 @@ describe('HasRolesAndPermissions with rules', function (): void {
         expect($user->hasPermissionTo('category.delete'))->toBeTrue()
             ->and($user->hasPermissionTo('category.create'))->toBeFalse();
     });
+
+    it('answers a backed enum that is not a permission by its value, as HasRoles does', function (): void {
+        $user = new User;
+        $user->permissions = ['panel'];
+
+        expect($user->hasPermissionTo(TestSurface::Panel))->toBeTrue()
+            ->and($user->hasPermissionTo(TestSurface::Machine))->toBeFalse();
+    });
 });
 
 describe('the Gate with rules', function (): void {
@@ -277,6 +286,12 @@ describe('the Gate with rules', function (): void {
 
     it('allows a permission implied by a stored one', function (): void {
         expect(Gate::allows(BasicRulePermission::View))->toBeTrue();
+    });
+
+    it('rules an ability checked by its string, which reaches the ability defined for the enum', function (): void {
+        // The Gate keys an enum ability by its value, so the string asks the enum's closure.
+        expect(Gate::allows('basic-rule.view'))->toBeTrue()
+            ->and(Gate::allows('basic-rule.create'))->toBeFalse();
     });
 
     it('runs the voters of the implied permission', function (): void {
