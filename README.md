@@ -491,8 +491,10 @@ permission-management UI.
 ```php
 use Happenv\LaravelAccessControl\Attributes\ConflictsWith;
 use Happenv\LaravelAccessControl\Attributes\ImpliedBy;
+use Happenv\LaravelAccessControl\Attributes\PermissionGroup;
 use Happenv\LaravelAccessControl\Attributes\Requires;
 
+#[PermissionGroup(GalleryGroup::class)]
 enum GalleryPermission: string implements PermissionDefinition
 {
     #[Requires(ProductPermission::View)]
@@ -502,6 +504,7 @@ enum GalleryPermission: string implements PermissionDefinition
     case Manage = 'gallery.manage';
 }
 
+#[PermissionGroup(OrderGroup::class)]
 enum OrderPermission: string implements PermissionDefinition
 {
     #[ConflictsWith(self::ViewAny)]
@@ -546,7 +549,10 @@ Worth knowing:
 - **Restrictions come last.** A restriction on `Update` withholds `Update`, not what `Update` implies.
 - **The voters of the permission being checked run.** `Gate::allows(GalleryPermission::Manage)` runs
   the voters of `Manage`, never those of the permission that implies it.
-- **Ability strings are not affected.** Like restrictions, rules are keyed by permission enum.
+- **`hasPermissionTo()` with an ability string is not ruled.** Like restrictions, rules are keyed by
+  permission enum, so `$user->hasPermissionTo('gallery.manage')` is answered without them. The Gate
+  is different: `Gate::allows('gallery.manage')` reaches the ability defined for the
+  enum case, and is ruled.
 - **A model with its own `hasPermissionTo()` bypasses the rules**, as it bypasses restrictions. It
   can ask `resolve(PermissionResolver::class)->allows($permission, $isStored)` itself.
 
@@ -581,8 +587,8 @@ with its own rules and any restriction already applied, and that answer stands i
 - Implications and conflicts between such roles still work.
 
 `HoldsGrants` also makes checks faster: a principal reads its roles' grants once, instead of scanning
-every role for every permission. Call `forgetResolvedPermissions()` after a principal's roles change
-within the same request.
+every role for every permission. Call `forgetResolvedPermissions()` after a principal's roles, or the
+grants of one of its roles, change within the same request.
 
 #### Checking your declarations
 

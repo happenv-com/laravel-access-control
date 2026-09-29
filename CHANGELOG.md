@@ -29,7 +29,7 @@ All notable changes to `access-control` will be documented in this file.
 
 ### Fixed
 
-- `HasRolesAndPermissions::hasPermissionTo()` threw a `TypeError` when given an ability string. It now checks the direct grants and the roles.
+- `HasRolesAndPermissions::hasPermissionTo()` threw when given an ability string or a backed enum that is not a permission. It now checks the direct grants and the roles by value, as `HasRoles` does.
 
 **Upgrading:** nothing changes until a permission declares a rule. To have rules resolved across roles, and for the faster lookup, add `implements HoldsGrants` to role classes that use `HasPermissions`. A `HoldsGrants` role is no longer asked `hasPermissionTo()`, so a role class that overrides it (a super-admin role, a role that can be switched off) must keep that logic in `getGrants()` or stay off `HoldsGrants`.
 
