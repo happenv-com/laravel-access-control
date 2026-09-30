@@ -1,4 +1,9 @@
-name: 'PHPStan'
+name: 'Composer Audit'
+
+# Known vulnerabilities and abandoned packages in the dependency set a fresh
+# install resolves today. There is no composer.lock in a library, so the audit
+# resolves one first; the weekly cron catches advisories published while the
+# code did not change.
 
 on:
   push:
@@ -7,11 +12,8 @@ on:
       - main
       - develop
     paths:
-      - '**.php'
       - 'composer.json'
-      - 'phpstan.neon.dist'
-      - 'phpstan-baseline.neon'
-      - '.github/workflows/phpstan.yml'
+      - '.github/workflows/composer-audit.yml'
 
   pull_request:
     types:
@@ -20,11 +22,12 @@ on:
       - synchronize
       - ready_for_review
     paths:
-      - '**.php'
       - 'composer.json'
-      - 'phpstan.neon.dist'
-      - 'phpstan-baseline.neon'
-      - '.github/workflows/phpstan.yml'
+      - '.github/workflows/composer-audit.yml'
+
+  schedule:
+    # Monday 06:00 UTC.
+    - cron: '0 6 * * 1'
 
   workflow_dispatch:
 
@@ -36,8 +39,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  phpstan:
-    name: phpstan
+  audit:
+    name: audit
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
     timeout-minutes: 10
@@ -54,9 +57,10 @@ jobs:
           php-version: '8.4'
           coverage: none
 
-      - name: Install dependencies
-        run: |
-          composer update --prefer-dist --no-interaction --no-progress --with-all-dependencies
+      # `--no-audit`: the audit is the next step, reported in full there rather
+      # than as a warning at the end of the install.
+      - name: Resolve dependencies
+        run: composer update --prefer-dist --no-interaction --no-progress --no-scripts --no-audit
 
-      - name: Run PHPStan
-        run: vendor/bin/phpstan analyse --error-format=github --no-progress
+      - name: Run composer audit
+        run: composer audit --abandoned=report --ansi
