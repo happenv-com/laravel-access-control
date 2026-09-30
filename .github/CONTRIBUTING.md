@@ -6,21 +6,7 @@ Please read and understand the contribution guide before creating an issue or pu
 
 ## Etiquette
 
-This project is open source, and as such, the maintainers give their free time to build and maintain the source code
-held within. They make the code freely available in the hope that it will be of use to other developers. It would be
-extremely unfair for them to suffer abuse or anger for their hard work.
-
-Please be considerate towards maintainers when raising issues or presenting pull requests. Let's show the
-world that developers are civilized and selfless people.
-
-It's the duty of the maintainer to ensure that all submissions to the project are of sufficient
-quality to benefit the project. Many developers have different skills, strengths, and weaknesses. Respect the maintainer's decision, and do not be upset or abusive if your submission is not used.
-
-## Viability
-
-When requesting or submitting new features, first consider whether it might be useful to others. Open
-source projects are used by many developers, who may have entirely different needs to your own. Think about
-whether or not your feature is likely to be used by other users of the project.
+The maintainers give their time to build and maintain this code and make it available in the hope that it will be useful. Please be considerate towards them when raising issues or presenting pull requests.
 
 ## Procedure
 
@@ -38,18 +24,11 @@ Before submitting a pull request:
 
 ## Requirements
 
-If the project maintainer has any additional requirements, you will find them listed here.
-
-- **[PSR-2 Coding Standard](https://github.com/php-fig/fig-standards/blob/master/accepted/PSR-2-coding-style-guide.md)** - The easiest way to apply the conventions is to install [PHP Code Sniffer](https://pear.php.net/package/PHP_CodeSniffer).
-
-- **Add tests!** - Your patch won't be accepted if it doesn't have tests.
-
-- **Document any change in behaviour** - Make sure the `README.md` and any other relevant documentation are kept up-to-date.
-
-- **Consider our release cycle** - We try to follow [SemVer v2.0.0](https://semver.org/). Randomly breaking public APIs is not an option.
-
-- **One pull request per feature** - If you want to do more than one thing, send multiple pull requests.
-
-- **Send coherent history** - Make sure each individual commit in your pull request is meaningful. If you had to make multiple intermediate commits while developing, please [squash them](https://www.git-scm.com/book/en/v2/Git-Tools-Rewriting-History#Changing-Multiple-Commit-Messages) before submitting.
+- **Run the checks locally** — `composer ci` runs what CI runs: composer.json normalization, Rector, Pint, PHPStan and the test suite. `composer cs` fixes what can be fixed automatically.
+- **Add tests!** — Your patch will not be accepted if it does not have tests.
+- **Title the PR in [Conventional Commits](https://www.conventionalcommits.org/) form** — e.g. `feat: add X` or `fix(tables): Y`. PRs are squash-merged, so the title becomes the commit message and the line in the release notes.
+- **Document any change in behaviour** — Make sure the `README.md` and any other relevant documentation are kept up-to-date. Do not edit `CHANGELOG.md`; it is written from the release notes.
+- **Consider our release cycle** — We follow [SemVer v2.0.0](https://semver.org/). Randomly breaking public APIs is not an option.
+- **One pull request per feature** — If you want to do more than one thing, send multiple pull requests.
 
 **Happy coding**!

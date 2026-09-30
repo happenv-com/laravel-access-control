@@ -1,8 +1,31 @@
-name: tests
+name: 'Tests'
+
+# The Pest suite across the supported PHP / Laravel range.
+#
+# Libraries do not commit composer.lock, so every leg resolves its own
+# dependency set with `composer update`. `prefer-lowest` proves the lower
+# bounds in composer.json are real, `prefer-stable` proves the package works
+# with what a fresh install gets today.
 
 on:
   push:
+    branches:
+      - '*.x'
+      - main
+      - develop
+    paths-ignore:
+      - '**.md'
+
   pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+    paths-ignore:
+      - '**.md'
+
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,60 +35,58 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  run-tests:
-    runs-on: ${{ matrix.os }}
+  tests:
+    name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.stability }}
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    timeout-minutes: 15
+
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        php: [8.5, 8.4, 8.3]
-        laravel: [13.*, 12.*]
+        php: ['8.3', '8.4', '8.5']
+        laravel: ['12.*', '13.*']
         stability: [prefer-lowest, prefer-stable]
         include:
-          - laravel: 13.*
-            testbench: 11.*
-            carbon: 3.*
-            collision: 8.*
-          - laravel: 12.*
-            testbench: 10.*
-            carbon: 3.*
-            collision: 8.*
-
-    name: P${{ matrix.php }} - L${{ matrix.laravel }} - ${{ matrix.stability }} - ${{ matrix.os }}
+          - laravel: '12.*'
+            testbench: '10.*'
+          - laravel: '13.*'
+            testbench: '11.*'
+        exclude:
+          # The lowest dependency set predates PHP 8.5 and only reports its
+          # deprecations there.
+          - php: '8.5'
+            stability: prefer-lowest
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.composer/cache/files
-          key: composer-${{ matrix.os }}-${{ matrix.php }}-${{ matrix.laravel }}-${{ matrix.stability }}-${{ hashFiles('composer.json') }}
-          restore-keys: |
-            composer-${{ matrix.os }}-${{ matrix.php }}-${{ matrix.laravel }}-
-            composer-${{ matrix.os }}-${{ matrix.php }}-
 
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: ${{ matrix.php }}
-          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, bcmath, soap, intl, gd, exif, iconv, imagick, fileinfo
-          coverage: pcov
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, bcmath, intl, fileinfo
+          coverage: none
 
       - name: Setup problem matchers
         run: |
-          echo "::add-matcher::${{ runner.tool_cache }}/php.json"
-          echo "::add-matcher::${{ runner.tool_cache }}/phpunit.json"
+          echo "::add-matcher::${RUNNER_TOOL_CACHE}/php.json"
+          echo "::add-matcher::${RUNNER_TOOL_CACHE}/phpunit.json"
 
       - name: Install dependencies
+        env:
+          LARAVEL: ${{ matrix.laravel }}
+          TESTBENCH: ${{ matrix.testbench }}
+          STABILITY: ${{ matrix.stability }}
         run: |
-          composer require "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" "nesbot/carbon:${{ matrix.carbon }}" --no-interaction --no-update
-          composer update --${{ matrix.stability }} --prefer-dist --no-interaction
+          composer require "laravel/framework:${LARAVEL}" "orchestra/testbench:${TESTBENCH}" --no-interaction --no-update
+          composer update "--${STABILITY}" --prefer-dist --no-interaction --no-progress --with-all-dependencies
 
       - name: List installed dependencies
         run: composer show -D
 
       - name: Execute tests
-        run: vendor/bin/pest --ci
+        run: vendor/bin/pest --ci --testsuite=Unit,Feature

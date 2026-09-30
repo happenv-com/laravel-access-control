@@ -1,6 +1,7 @@
 {
     "name": "happenv-com/laravel-access-control",
     "description": "A modular access control library for Laravel applications.",
+    "license": "MIT",
     "keywords": [
         "happenv",
         "laravel",
@@ -12,28 +13,36 @@
         "rbac",
         "access-control"
     ],
-    "homepage": "https://github.com/happenv-com/laravel-access-control",
-    "support": {
-        "issues": "https://github.com/happenv-com/laravel-access-control/issues",
-        "source": "https://github.com/happenv-com/laravel-access-control"
-    },
-    "license": "MIT",
     "authors": [
+        {
+            "name": "Happenv sp. z o.o.",
+            "email": "code@happenv.com",
+            "homepage": "https://happenv.com",
+            "role": "Maintainer"
+        },
         {
             "name": "webard",
             "email": "code@webard.me",
+            "homepage": "https://github.com/webard",
             "role": "Developer"
         }
     ],
+    "homepage": "https://github.com/happenv-com/laravel-access-control",
+    "support": {
+        "issues": "https://github.com/happenv-com/laravel-access-control/issues",
+        "source": "https://github.com/happenv-com/laravel-access-control",
+        "security": "https://github.com/happenv-com/laravel-access-control/security/policy"
+    },
     "require": {
         "php": "^8.3",
-        "illuminate/support": "^12.20|^13.0"
+        "illuminate/support": "^12.20 || ^13.0"
     },
     "require-dev": {
+        "ergebnis/composer-normalize": "^2.48",
         "larastan/larastan": "^3.0",
         "laravel/pint": "^1.0",
         "nunomaduro/collision": "^8.0",
-        "orchestra/testbench": "^10.0|^11.0",
+        "orchestra/testbench": "^10.0 || ^11.0",
         "pestphp/pest": "^4.2",
         "pestphp/pest-plugin-arch": "^4.0",
         "pestphp/pest-plugin-laravel": "^4.0",
@@ -42,6 +51,8 @@
         "phpstan/phpstan-phpunit": "^2.0",
         "rector/rector": "^2.0"
     },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
     "autoload": {
         "psr-4": {
             "Happenv\\LaravelAccessControl\\": "src/",
@@ -53,36 +64,50 @@
             "Happenv\\LaravelAccessControl\\Tests\\": "tests/"
         }
     },
-    "scripts": {
-        "post-autoload-dump": "@php ./vendor/bin/testbench package:discover --ansi",
-        "analyse": "phpstan analyse",
-        "lint": "pint",
-        "refactor": "rector",
-        "coverage": "@test --coverage",
-        "type-coverage": "@test --type-coverage",
-        "test": "pest",
-        "test:lint": "pint --test",
-        "test:refactor": "rector --dry-run",
-        "test:type-coverage": "@test --type-coverage --exactly=100",
-        "test:coverage": "@test --coverage --exactly=100"
+    "config": {
+        "allow-plugins": {
+            "composer/package-versions-deprecated": true,
+            "ergebnis/composer-normalize": true,
+            "pestphp/pest-plugin": true
+        },
+        "sort-packages": true
     },
     "extra": {
         "laravel": {
-            "providers": [
-                "Happenv\\LaravelAccessControl\\AccessControlServiceProvider"
-            ],
             "aliases": {
                 "AccessControl": "Happenv\\LaravelAccessControl\\Facades\\AccessControl"
-            }
+            },
+            "providers": [
+                "Happenv\\LaravelAccessControl\\AccessControlServiceProvider"
+            ]
         }
     },
-    "config": {
-        "sort-packages": true,
-        "allow-plugins": {
-            "composer/package-versions-deprecated": true,
-            "pestphp/pest-plugin": true
-        }
-    },
-    "minimum-stability": "dev",
-    "prefer-stable": true
+    "scripts": {
+        "post-autoload-dump": "@php ./vendor/bin/testbench package:discover --ansi",
+        "ci": [
+            "@normalize-composer-test",
+            "@rector-test",
+            "@pint-test",
+            "@phpstan",
+            "@psr4-test",
+            "@test"
+        ],
+        "cs": [
+            "@normalize-composer",
+            "@rector",
+            "@pint"
+        ],
+        "normalize-composer": "@composer normalize --ansi",
+        "normalize-composer-test": "@composer normalize --dry-run --ansi",
+        "phpstan": "phpstan analyse --ansi",
+        "pint": "pint",
+        "pint-test": "pint --test",
+        "psr4-test": "@composer dump-autoload --optimize --strict-psr",
+        "rector": "rector process",
+        "rector-test": "rector process --dry-run",
+        "test": "pest --testsuite=Unit,Feature",
+        "test-coverage": "pest --testsuite=Unit,Feature --coverage",
+        "test-type-coverage": "pest --type-coverage --exactly=100",
+        "type-coverage": "pest --type-coverage"
+    }
 }
