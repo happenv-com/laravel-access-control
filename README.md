@@ -6,8 +6,12 @@
 
 </div>
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/happenv-com/laravel-access-control.svg?style=flat-square)](https://packagist.org/packages/happenv-com/laravel-access-control)
+[![Latest Version](https://img.shields.io/github/v/release/happenv-com/laravel-access-control?style=flat-square&label=version)](https://github.com/happenv-com/laravel-access-control/releases)
+[![Tests](https://img.shields.io/github/actions/workflow/status/happenv-com/laravel-access-control/tests.yml?label=tests&style=flat-square)](https://github.com/happenv-com/laravel-access-control/actions/workflows/tests.yml)
+[![PHPStan](https://img.shields.io/github/actions/workflow/status/happenv-com/laravel-access-control/phpstan.yml?label=phpstan&style=flat-square)](https://github.com/happenv-com/laravel-access-control/actions/workflows/phpstan.yml)
+[![Quality](https://img.shields.io/github/actions/workflow/status/happenv-com/laravel-access-control/quality.yml?label=code%20quality&style=flat-square)](https://github.com/happenv-com/laravel-access-control/actions/workflows/quality.yml)
 [![Total Downloads](https://img.shields.io/packagist/dt/happenv-com/laravel-access-control.svg?style=flat-square)](https://packagist.org/packages/happenv-com/laravel-access-control)
+[![License](https://img.shields.io/github/license/happenv-com/laravel-access-control.svg?style=flat-square)](LICENSE.md)
 
 A modular access control library for Laravel applications that uses **enum-based permissions** and a **voter system**. Perfect for modular monolith architectures where different modules can define their own permission logic and extend existing.
 
@@ -65,10 +69,21 @@ If you're building a traditional Laravel monolith without modular architecture, 
 - **[Laravel Policies](https://laravel.com/docs/authorization#creating-policies)** - Built-in authorization system, perfect for simple applications
 - **[spatie/laravel-permission](https://github.com/spatie/laravel-permission)** - Excellent package for role and permission management in monolithic applications
 
+## Filament
+
+Building a [Filament](https://filamentphp.com) panel? **[happenv-com/filament-access-control](https://github.com/happenv-com/filament-access-control)** puts this library on screen with nothing but Filament's own components. Its access control page shows every role against every permission in one table, and its editor shows the permissions of a single role or user wherever you put it — a section of a form, a tab, a page of its own. Each cell shows what this library resolves: in effect, implied by another permission, missing a requirement, blocked by a conflict, restricted at runtime, or withheld by a condition such as its `#[RequiresMFA]`, with the rule named in the tooltip. Changes are written on every click or collected until the operator saves them, and every change is authorized through the gate — voters included.
+
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="art/screenshots/access-control-dark.png">
+    <img src="art/screenshots/access-control-light.png" alt="The Access control page of filament-access-control: a column per role, the Work group open with its counters, Dependencies badges and a tooltip naming the conflict that blocks a cell">
+</picture>
+
 ## Requirements
 
-- PHP 8.4+
-- Laravel 12.0+
+| Package  | Versions  |
+|----------|-----------|
+| PHP      | 8.3 – 8.5 |
+| Laravel  | 12, 13    |
 
 ## Installation
 
@@ -1042,12 +1057,41 @@ class User extends Authenticatable implements AuthControllable
 }
 ```
 
-## Testing
+## Development
 
 ```bash
-composer test
+composer test          # unit and feature tests
+composer phpstan       # static analysis
+composer cs            # fix code style: composer normalize, Rector, Pint
+composer ci            # everything CI checks, locally
 ```
+
+## Changelog
+
+See [CHANGELOG](CHANGELOG.md) and [GitHub releases](https://github.com/happenv-com/laravel-access-control/releases) for what has changed recently.
+
+## Contributing
+
+See [CONTRIBUTING](.github/CONTRIBUTING.md) for details.
+
+## Security vulnerabilities
+
+Please review [our security policy](.github/SECURITY.md) on how to report security vulnerabilities.
+
+## Credits
+
+- [Happenv sp. z o.o.](https://happenv.com)
+- [webard](https://github.com/webard)
+- [All contributors](../../contributors)
 
 ## License
 
-The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
+The MIT License (MIT). See [License File](LICENSE.md) for more information.
+
+---
+
+<p align="center">
+    <a href="https://happenv.com">
+        <img src="art/happenv-logo.png" alt="Happenv" width="400">
+    </a>
+</p>
