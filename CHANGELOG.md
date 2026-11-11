@@ -2,6 +2,17 @@
 
 All notable changes to `laravel-access-control` are documented in this file. Each section is written automatically from the GitHub release notes when a release is published — do not edit it by hand.
 
+## v3.1.3 - 2026-11-11
+
+<!-- Release notes generated using configuration in .github/release.yml at 3.x -->
+### What's Changed
+
+#### Other
+
+* chore: keep dev-only files out of the Composer dist archive by @webard in https://github.com/happenv-com/laravel-access-control/pull/39
+
+**Full Changelog**: https://github.com/happenv-com/laravel-access-control/compare/v3.1.2...v3.1.3
+
 ## v3.1.2 - 2026-11-11
 
 <!-- Release notes generated using configuration in .github/release.yml at 3.x -->
