@@ -1057,6 +1057,10 @@ class User extends Authenticatable implements AuthControllable
 }
 ```
 
+## AI assistants (Laravel Boost)
+
+The package ships a [Laravel Boost](https://laravel.com/docs/boost) skill, `laravel-access-control-development`, in `resources/boost/skills/`. `php artisan boost:install` (or `boost:update`) offers it to your coding agent: how to define and register permission enums, write voters, set up users and roles, declare rules, restrictions and conditions, and test the result through the Gate.
+
 ## Development
 
 ```bash
