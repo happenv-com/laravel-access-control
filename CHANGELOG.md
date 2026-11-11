@@ -2,6 +2,25 @@
 
 All notable changes to `laravel-access-control` are documented in this file. Each section is written automatically from the GitHub release notes when a release is published — do not edit it by hand.
 
+## v3.1.2 - 2026-11-11
+
+<!-- Release notes generated using configuration in .github/release.yml at 3.x -->
+### What's Changed
+
+#### Other
+
+* ci: align with the package skeleton; README badges and the Filament screens by @webard in https://github.com/happenv-com/laravel-access-control/pull/30
+* chore(deps): Bump trufflesecurity/trufflehog from 3.97.5 to 3.97.8 in the github-actions group by @dependabot[bot] in https://github.com/happenv-com/laravel-access-control/pull/31
+* chore(deps): Bump trufflesecurity/trufflehog from 3.97.8 to 3.97.9 in the github-actions group by @dependabot[bot] in https://github.com/happenv-com/laravel-access-control/pull/32
+* ci: run Copilot code review on GitHub-hosted runners by @webard in https://github.com/happenv-com/laravel-access-control/pull/33
+* chore: configure Laravel Moat by @webard in https://github.com/happenv-com/laravel-access-control/pull/34
+* chore(deps): Bump the github-actions group with 2 updates by @dependabot[bot] in https://github.com/happenv-com/laravel-access-control/pull/35
+* chore(deps): Bump zizmorcore/zizmor-action from 0.6.4 to 0.7.1 in the github-actions group by @dependabot[bot] in https://github.com/happenv-com/laravel-access-control/pull/36
+* chore(deps): Bump the github-actions group with 3 updates by @dependabot[bot] in https://github.com/happenv-com/laravel-access-control/pull/37
+* docs: ship a Laravel Boost skill by @webard in https://github.com/happenv-com/laravel-access-control/pull/38
+
+**Full Changelog**: https://github.com/happenv-com/laravel-access-control/compare/v3.1.1...v3.1.2
+
 ## 3.1.1 - Unreleased
 
 ### Fixed
@@ -33,23 +52,34 @@ All notable changes to `laravel-access-control` are documented in this file. Eac
 ### Added
 
 - Rules between permissions, declared on enum cases (#23):
+  
   - `#[Requires(A)]`: effective only while A is;
   - `#[ImpliedBy(A)]`: granted along with A;
   - `#[ConflictsWith(A)]`: not effective while A is.
-
+  
   Each is repeatable and takes an optional `reason`: a translation key, or on PHP 8.5+ a closure. A rule changes only the permission that declares it.
+  
 - `PermissionGraph`, a singleton that compiles the rules of every registered enum lazily, once per process, and recompiles after a later registration.
+  
   - A rule about the permission itself, or a cycle of `Requires`, throws `InvalidPermissionRuleException`.
   - `problems()` lists permissions that can never be allowed and rules pointing at unregistered enums.
+  
 - `PermissionResolver`, a singleton, with `allows($permission, $stored)` and `explain($permission, $stored)`. `explain()` returns a `PermissionResolutionDto` for a UI.
+  
 - `Contracts\HoldsGrants`: a role that hands over its raw grants (`getGrants()`, provided by `HasPermissions`). A principal then resolves rules over the union of its roles and reads their grants once per instance.
+  
 - `PermissionDto::$rules`: every `PermissionRuleDto` a permission declares or is the target of. `PermissionCollection` attaches them with the reason translated.
+  
 - `getEffectivePermissions()` on `HasPermissions`, `HasRoles` and `HasRolesAndPermissions`, and `AccessControl::effectivePermissions($principal)` for any `AuthControllable`: every registered permission the principal may act on now, as a `Collection` of enum cases. Rules and restrictions count; voters do not.
+  
 - `PermissionReflector::getRules()`.
+  
 - Permission graphs:
+  
   - `php artisan permission:graph` draws the catalogue's rules, and `permission:graph {key}` draws what a principal may do and why. It takes `--format=tree|mermaid|dot|json`, `--model`, `--guard` and `--schema-version`.
   - The same graphs are available in code through `AccessControl::diagram()`: `catalogue()`, `forPrincipal($user)`, `render($diagram, $format)` and `toArray()`.
   - `Contracts\DescribesGrantHolder` names a principal or role. Renderers tagged `access-control.diagram-renderers` add or replace formats.
+  
 
 ### Changed
 
