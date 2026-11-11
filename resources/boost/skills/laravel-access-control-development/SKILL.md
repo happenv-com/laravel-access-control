@@ -118,7 +118,7 @@ resolve(VoterRegistry::class)->register(
 );
 ```
 
-- Make the subject parameter **nullable with a default**. `Gate::allows(ProductPermission::Delete)` without a model (menus, list pages, `effectivePermissions()`) calls voters with no arguments; a required parameter throws `ArgumentCountError`.
+- Make the subject parameter **nullable with a default**. `Gate::allows(ProductPermission::Delete)` without a model (menus, list pages) calls voters with no arguments; a required parameter throws `ArgumentCountError`.
 - The voter class is created with `new` for every vote: **no constructor injection**. Resolve services inside the method (`resolve(...)`). Only public methods with `#[VoterForPermission]` are read, one attribute per method.
 - Always return a `Response`, never a `bool`.
 - Voters do not run in `hasPermissionTo()`, `getEffectivePermissions()` or `explain()`; only at the Gate.
@@ -179,7 +179,7 @@ $user->getEffectivePermissions();                      // Collection of enum cas
 AccessControl::effectivePermissions($principal);       // same for any AuthControllable
 ```
 
-- Pass the **enum**, not the string. `hasPermissionTo('catalogue.product.view')` skips rules and restrictions (conditions still apply). The Gate resolves a string to the same ability, so `Gate::allows('...')` is fine.
+- Pass the **enum**, not the string. `HasPermissions::hasPermissionTo()` accepts only a `PermissionDefinition` (a string is a `TypeError`); `HasRoles` and `HasRolesAndPermissions` accept a string but then skip rules and restrictions (conditions still apply). The Gate resolves a string to the same ability, so `Gate::allows('...')` is fine.
 - Refusals read `Unauthorized.` for a missing grant, restriction and unmet condition alike. `config('access-control.display_permission_in_exception')` makes it `Unauthorized for <value>` (publish: `--tag=access-control-config`). Only a voter's `deny()` carries its own message.
 - **Super-admin.** A `Gate::before()` returning `true` skips restrictions, conditions **and voters**. To keep them for admins, short-circuit in the model instead: `use HasRoles { hasPermissionTo as roleHasPermissionTo; }` and `public function hasPermissionTo(PermissionDefinition $permission): bool { return $this->is_admin || $this->roleHasPermissionTo($permission); }`. The Gate still applies restrictions, conditions and voters to the admin; only grants and rules are skipped. Outside the Gate, ask `AccessControl::isRestricted()` yourself.
 
@@ -192,7 +192,7 @@ use Happenv\LaravelAccessControl\Attributes\Requires;
 
 enum GalleryPermission: string implements PermissionDefinition
 {
-    #[Requires(ProductPermission::View)]                                // effective only while View is
+    #[Requires(ProductPermission::View)]                                // only while View is active (granted, its own requirements met)
     case View = 'gallery.view';
 
     #[ImpliedBy(ProductPermission::Update, reason: 'permissions.rules.follows')]  // granted with Update
@@ -202,13 +202,14 @@ enum GalleryPermission: string implements PermissionDefinition
 
 enum OrderPermission: string implements PermissionDefinition
 {
-    #[ConflictsWith(self::ViewAny)]                                     // not effective while ViewAny is
+    #[ConflictsWith(self::ViewAny)]                                     // not allowed while ViewAny is active
     case ViewOwn = 'order.view-own';
 
     case ViewAny = 'order.view-any';
 }
 ```
 
+- `Requires` and `ConflictsWith` look at whether the other permission is **active**: granted (stored or implied) with its own requirements met. They do not see the other permission's conflicts, runtime restrictions, account conditions or voters, so a `Requires(View)` case stays allowed while `View` itself is blocked by one of those. Guard the dependent permission with its own condition, restriction or voter if that matters.
 - A rule changes **only the case it sits on**: declare it in the module that knows the other permission. Only the declaring side of a conflict loses.
 - Several `#[Requires]` = all required. `#[ImpliedBy]` follows the *grant*, so `Update #[Requires(View)]` with `View #[ImpliedBy(Update)]` works.
 - Restrictions withhold the permission asked, not what it implies. The voters of the checked permission run, not those of its implier.
@@ -220,6 +221,7 @@ enum OrderPermission: string implements PermissionDefinition
 Withhold permissions from everyone while something holds (read-only mode, suspended tenant); grants are untouched.
 
 ```php
+use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
 use Happenv\LaravelAccessControl\Facades\AccessControl;
 use Happenv\LaravelAccessControl\PermissionReflector;
 
@@ -240,6 +242,9 @@ An attribute class implementing `PermissionCondition`, placed on an enum (all ca
 use Attribute;
 use Happenv\LaravelAccessControl\Contracts\DescribesPermissionCondition;
 use Happenv\LaravelAccessControl\Contracts\PermissionCondition;
+use Happenv\LaravelAccessControl\Contracts\PermissionDefinition;
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 
 #[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_CLASS_CONSTANT | Attribute::IS_REPEATABLE)]
 final readonly class RequiresVerifiedEmail implements PermissionCondition, DescribesPermissionCondition
@@ -253,7 +258,7 @@ final readonly class RequiresVerifiedEmail implements PermissionCondition, Descr
 }
 ```
 
-- Applies only to `Authenticatable` principals (not to roles). Checked last, never cached, run twice per Gate check: no side effects, avoid queries.
+- Applies only to `Authenticatable` principals (not to roles). Checked last, never cached, run up to twice per Gate check: no side effects, avoid queries.
 - **Import the attribute class** in the enum's file. PHP silently ignores an unresolvable attribute, and the permission is then granted without the condition. Cover each condition with a test.
 - `AccessControl::unmetConditions($permission, $account)` lists what an account fails. Filament ships `#[RequiresMFA]`.
 
